@@ -1,0 +1,33 @@
+{
+  "timestamp": "2026-01-26T21:05:30.945891",
+  "total_findings": 3,
+  "findings": [
+    {
+      "timestamp": "2026-01-26T21:05:09.724078",
+      "category": "S3",
+      "severity": "MEDIUM",
+      "description": "S3 bucket 'dev-045378075905-flow-logs' has no public access block configuration",
+      "resource": "arn:aws:s3:::dev-045378075905-flow-logs",
+      "recommendation": "Configure public access block settings"
+    },
+    {
+      "timestamp": "2026-01-26T21:05:27.505754",
+      "category": "CloudTrail",
+      "severity": "HIGH",
+      "description": "No CloudTrail trails configured",
+      "resource": "AWS Account",
+      "recommendation": "Enable CloudTrail for audit logging"
+    },
+    {
+      "timestamp": "2026-01-26T21:05:30.940454",
+      "category": "VPC",
+      "severity": "MEDIUM",
+      "description": "VPC 'vpc-0b915f33c5e1ad17f' does not have Flow Logs enabled",
+      "resource": "vpc-0b915f33c5e1ad17f",
+      "details": {
+        "vpc_cidr": "172.31.0.0/16"
+      },
+      "recommendation": "Enable VPC Flow Logs to monitor network traffic"
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+name: InfraGuard Security Scan
+
+on:
+  # Run daily at 9 AM UTC
+  schedule:
+    - cron: '0 9 * * *'
+  
+  # Allow manual triggering
+  workflow_dispatch:
+  
+  # Run on push to main (for testing)
+  push:
+    branches: [ main ]
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Run InfraGuard Security Checks
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+          INFRAGUARD_S3_BUCKET: ${{ secrets.INFRAGUARD_S3_BUCKET }}
+          INFRAGUARD_SNS_TOPIC_ARN: ${{ secrets.INFRAGUARD_SNS_TOPIC_ARN }}
+          INFRAGUARD_SLACK_WEBHOOK: ${{ secrets.INFRAGUARD_SLACK_WEBHOOK }}
+        run: |
+          python main.py check-all --output-file findings.json
+      
+      - name: Upload findings as artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-findings-${{ github.run_number }}
+          path: findings.json
+          retention-days: 30
+      
+      - name: Check for critical findings
+        run: |
+          if grep -q '"severity": "CRITICAL"' findings.json; then
+            echo "::error::Critical security findings detected!"
+            exit 1
+          fi

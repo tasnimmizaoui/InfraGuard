@@ -1,0 +1,105 @@
+# ============================================
+# Example Terraform Variables Configuration
+# ============================================
+# Copy this file to terraform.tfvars and customize:
+#   cp terraform.tfvars.example terraform.tfvars
+#
+# Then edit terraform.tfvars with your values
+
+# ============================================
+# General Configuration
+# ============================================
+
+aws_region = "us-east-1"  # Change to your preferred region
+
+default_tags = {
+  Project     = "InfraGuard"
+  Environment = "Production"
+  ManagedBy   = "Terraform"
+  Owner       = "security-team@example.com"
+}
+
+# ============================================
+# Alerting Configuration (REQUIRED)
+# ============================================
+
+# Email addresses that will receive security alerts
+# You will receive an SNS confirmation email for each address
+alert_email_addresses = [
+  "tasnimmizaoui1@gmail.com"
+]
+
+# Optional: SMS alerts (E.164 format: +1234567890)
+# alert_sms_numbers = [
+#   "+12345678901"
+# ]
+
+# ============================================
+# Storage Configuration (Optional)
+# ============================================
+
+# Leave empty for auto-generated bucket name: infraguard-logs-{account_id}-{region}
+# s3_bucket_name = ""
+
+# Number of days to retain logs (90 days = free tier friendly)
+log_retention_days = 90
+
+# ============================================
+# Logging Configuration (Optional)
+# ============================================
+
+# Enable CloudTrail multi-region trail
+multi_region_trail = true
+
+# Enable VPC Flow Logs for default VPC
+enable_vpc_flow_logs = true
+
+# Additional VPC IDs to monitor (optional)
+# additional_vpc_ids = [
+#   "vpc-0123456789abcdef0",
+#   "vpc-0fedcba9876543210"
+# ]
+
+# ============================================
+# Lambda Configuration (Optional)
+# ============================================
+
+# Deploy Lambda function for automated scans
+enable_lambda_deployment = true
+
+# Lambda function configuration
+lambda_function_name   = "infraguard-scanner"
+lambda_python_runtime  = "python3.11"
+lambda_timeout         = 300      # 5 minutes
+lambda_memory_size     = 512      # MB
+lambda_log_level       = "INFO"   # DEBUG, INFO, WARNING, ERROR
+
+# Schedule expression (daily at 9 AM UTC)
+# Use AWS cron format: cron(minute hour day month day-of-week year)
+# Or rate format: rate(1 day), rate(6 hours), etc.
+lambda_schedule = "cron(0 9 * * ? *)"
+
+# CloudWatch Logs retention for Lambda
+lambda_log_retention_days = 30
+
+# Enable Lambda Function URL for manual invocation (optional)
+enable_lambda_function_url = false
+
+# Additional environment variables for Lambda (optional)
+# lambda_environment_variables = {
+#   SLACK_WEBHOOK_URL = "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+# }
+
+# ============================================
+# IAM Configuration (Optional)
+# ============================================
+
+scanner_user_name = "infraguard-scanner"
+lambda_role_name  = "InfraGuardLambdaRole"
+
+# ============================================
+# SNS Configuration (Optional)
+# ============================================
+
+sns_topic_name    = "infraguard-alerts"
+cloudtrail_name   = "infraguard-trail"
