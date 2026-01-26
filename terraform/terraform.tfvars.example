@@ -26,12 +26,13 @@ default_tags = {
 # Email addresses that will receive security alerts
 # You will receive an SNS confirmation email for each address
 alert_email_addresses = [
-  "tasnimmizaoui1@gmail.com"
+  "admin.test@example.com",
+  "security@team.com"
 ]
 
 # Optional: SMS alerts (E.164 format: +1234567890)
 # alert_sms_numbers = [
-#   "+12345678901"
+#   "+123456789"
 # ]
 
 # ============================================

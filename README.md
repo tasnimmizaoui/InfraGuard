@@ -412,35 +412,6 @@ InfraGuard/
 └── tests/                    # Unit tests (optional)
 ```
 
-## Future Enhancements
-
-1. **Additional AWS Service Checks:**
-   - RDS database security (encryption, public access)
-   - Lambda function permissions
-   - API Gateway security
-   - DynamoDB encryption
-   - Elasticsearch/OpenSearch public access
-
-2. **Advanced Detection Rules:**
-   - Machine learning for anomaly detection
-   - Baseline behavior tracking
-   - Threat intelligence integration
-
-3. **Compliance Frameworks:**
-   - CIS AWS Foundations Benchmark
-   - NIST Cybersecurity Framework
-   - PCI DSS requirements
-
-4. **Automation:**
-   - Auto-remediation for common issues
-   - AWS Config Rules integration
-   - AWS Systems Manager automation
-
-5. **Reporting:**
-   - HTML dashboard generation
-   - Trend analysis over time
-   - Executive summary reports
-
 ## Troubleshooting
 
 ### "NoCredentialsError"
@@ -459,17 +430,6 @@ InfraGuard/
 - This is good! Your AWS infrastructure is properly configured
 - Try running with `--log-level DEBUG` to see more details
 
-## Contributing
-
-Contributions are welcome! Please focus on:
-- Adding new free-tier-safe security checks
-- Improving detection accuracy
-- Better documentation
-- Unit tests
-
-## License
-
-MIT License - feel free to use and modify for your needs.
 
 ## Security Notice
 
@@ -484,5 +444,3 @@ InfraGuard is a monitoring tool and does not make changes to your AWS infrastruc
 This tool is provided as-is for security monitoring purposes. Always verify findings before taking remediation actions. The authors are not responsible for any changes made to your AWS infrastructure based on this tool's output.
 
 ---
-
-**Built with ❤️ for AWS security best practices**
