@@ -9,24 +9,45 @@ data "aws_region" "current" {}
 # Package InfraGuard Code
 # ============================================
 
-# Create Lambda deployment package
+# Create Lambda deployment package with both infra_guard module and lambda_handler
 data "archive_file" "infraguard_lambda" {
   type        = "zip"
-  source_dir  = "${path.root}/../infra_guard"
   output_path = "${path.module}/lambda_function.zip"
-  excludes = [
-    "__pycache__",
-    "*.pyc",
-    ".pytest_cache",
-    "tests"
-  ]
-}
-
-# Include lambda_handler in the package
-data "archive_file" "lambda_handler" {
-  type        = "zip"
-  source_file = "${path.root}/../lambda_handler.py"
-  output_path = "${path.module}/lambda_handler.zip"
+  
+  source {
+    content  = file("${path.root}/../lambda_handler.py")
+    filename = "lambda_handler.py"
+  }
+  
+  source {
+    content  = file("${path.root}/../infra_guard/__init__.py")
+    filename = "infra_guard/__init__.py"
+  }
+  
+  source {
+    content  = file("${path.root}/../infra_guard/config.py")
+    filename = "infra_guard/config.py"
+  }
+  
+  source {
+    content  = file("${path.root}/../infra_guard/utils.py")
+    filename = "infra_guard/utils.py"
+  }
+  
+  source {
+    content  = file("${path.root}/../infra_guard/detection_rules.py")
+    filename = "infra_guard/detection_rules.py"
+  }
+  
+  source {
+    content  = file("${path.root}/../infra_guard/alerting.py")
+    filename = "infra_guard/alerting.py"
+  }
+  
+  source {
+    content  = file("${path.root}/../infra_guard/log_ingestion.py")
+    filename = "infra_guard/log_ingestion.py"
+  }
 }
 
 # ============================================
@@ -46,7 +67,6 @@ resource "aws_lambda_function" "infraguard_scanner" {
   environment {
     variables = merge(
       {
-        AWS_REGION               = data.aws_region.current.name
         INFRAGUARD_S3_BUCKET     = var.s3_bucket_name
         INFRAGUARD_SNS_TOPIC_ARN = var.sns_topic_arn
         INFRAGUARD_LOG_LEVEL     = var.log_level

@@ -53,9 +53,8 @@ resource "aws_iam_user_policy" "s3_log_access" {
 
 # SNS publish permission for alerts
 resource "aws_iam_user_policy" "sns_publish" {
-  count = var.sns_topic_arn != "" ? 1 : 0
-  name  = "InfraGuardSNSPublish"
-  user  = aws_iam_user.infraguard_scanner.name
+  name = "InfraGuardSNSPublish"
+  user = aws_iam_user.infraguard_scanner.name
 
   policy = jsonencode({
     Version = "2012-10-17"

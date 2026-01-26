@@ -22,15 +22,15 @@ class Config:
     """
     
     # AWS Configuration
-    aws_region: str = field(default_factory=lambda: os.getenv("AWS_REGION", "us-east-1"))
+    aws_region: str = field(default_factory=lambda: os.getenv("AWS_REGION", "us-east-1").strip())
     
     # S3 Configuration (for CloudTrail and VPC Flow Logs)
-    s3_bucket: Optional[str] = field(default_factory=lambda: os.getenv("INFRAGUARD_S3_BUCKET"))
+    s3_bucket: Optional[str] = field(default_factory=lambda: os.getenv("INFRAGUARD_S3_BUCKET", "").strip() or None)
     s3_cloudtrail_prefix: str = "cloudtrail/"
     s3_vpc_flow_logs_prefix: str = "vpc-flow-logs/"
     
     # SNS Configuration (for alerts)
-    sns_topic_arn: Optional[str] = field(default_factory=lambda: os.getenv("INFRAGUARD_SNS_TOPIC_ARN"))
+    sns_topic_arn: Optional[str] = field(default_factory=lambda: os.getenv("INFRAGUARD_SNS_TOPIC_ARN", "").strip() or None)
     
     # Slack Configuration (alternative to SNS)
     slack_webhook_url: Optional[str] = field(default_factory=lambda: os.getenv("INFRAGUARD_SLACK_WEBHOOK"))

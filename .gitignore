@@ -57,3 +57,6 @@ htmlcov/
 **/.terraform.tfstate.lock.info
 **/crash.log
 **/lambda_function.zip
+
+
+secrets.txt

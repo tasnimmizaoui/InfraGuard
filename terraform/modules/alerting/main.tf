@@ -47,22 +47,25 @@ resource "aws_sns_topic_subscription" "sms" {
 # ============================================
 
 data "aws_iam_policy_document" "sns_topic_policy" {
-  statement {
-    sid    = "AllowInfraGuardPublish"
-    effect = "Allow"
+  dynamic "statement" {
+    for_each = length(var.publisher_arns) > 0 ? [1] : []
+    content {
+      sid    = "AllowInfraGuardPublish"
+      effect = "Allow"
 
-    principals {
-      type        = "AWS"
-      identifiers = var.publisher_arns
+      principals {
+        type        = "AWS"
+        identifiers = var.publisher_arns
+      }
+
+      actions = [
+        "SNS:Publish"
+      ]
+
+      resources = [
+        aws_sns_topic.infraguard_alerts.arn
+      ]
     }
-
-    actions = [
-      "SNS:Publish"
-    ]
-
-    resources = [
-      aws_sns_topic.infraguard_alerts.arn
-    ]
   }
 
   # Allow CloudWatch Alarms to publish (optional for future use)
