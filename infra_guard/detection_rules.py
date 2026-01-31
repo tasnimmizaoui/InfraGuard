@@ -74,6 +74,9 @@ class SecurityChecker:
         if self.config.check_s3_bucket_policy:
             self.findings.extend(self.check_s3_bucket_policy())
         
+        if self.config.check_s3_object_lock:
+            self.findings.extend(self.check_s3_object_lock())
+        
         # CloudTrail Checks
         if self.config.check_cloudtrail_enabled:
             self.findings.extend(self.check_cloudtrail_enabled())
@@ -566,7 +569,7 @@ class SecurityChecker:
                     # Check for default encryption
                     encryption = s3_client.get_bucket_encryption(Bucket=bucket_name)
                     rules = encryption.get('ServerSideEncryptionConfiguration', {}).get('Rules', [])
-                                        
+
                     for rule in rules:
                      sse_algorithm = rule.get('ApplyServerSideEncryptionByDefault', {}).get('SSEAlgorithm')
             
@@ -594,6 +597,49 @@ class SecurityChecker:
         
         except Exception as e:
             handle_aws_error(e, "Checking S3 encryption")
+        
+        return findings
+    
+    def check_s3_object_lock(self) -> List[Dict[str, Any]]:
+        """
+        Check if S3 buckets have Object Lock enabled.
+        
+        Object Lock helps prevent object deletions and modifications.
+        
+        Returns:
+            List of findings for S3 buckets without Object Lock
+        """
+        findings = []
+        self.logger.info("Checking S3 bucket Object Lock...")
+        
+        try:
+            s3_client = get_aws_client('s3', self.config.aws_region)
+            
+            response = s3_client.list_buckets()
+            buckets = response.get('Buckets', [])
+            
+            for bucket in buckets:
+                bucket_name = bucket['Name']
+                
+                try:
+                    # Check for Object Lock configuration
+                    object_lock = s3_client.get_object_lock_configuration(Bucket=bucket_name)
+                    config = object_lock.get('ObjectLockConfiguration', {})
+                    
+                    if config.get('ObjectLockEnabled') != 'Enabled':
+                        findings.append(create_finding(
+                            category="S3",
+                            severity="LOW",
+                            description=f"S3 bucket '{bucket_name}' does not have Object Lock enabled",
+                            resource=f"arn:aws:s3:::{bucket_name}",
+                            recommendation="Enable Object Lock to protect objects from deletion/modification"
+                        ))
+                
+                except ClientError as e:
+                    handle_aws_error(e, f"Checking Object Lock for bucket {bucket_name}")
+        
+        except Exception as e:
+            handle_aws_error(e, "Checking S3 Object Lock")
         
         return findings
     

@@ -55,6 +55,8 @@ class Config:
     check_s3_encryption: bool = True
     check_s3_versioning: bool = True
     check_s3_bucket_policy: bool = True
+    check_s3_object_lock: bool = True
+    
     
     # CloudTrail checks
     check_cloudtrail_enabled: bool = True
