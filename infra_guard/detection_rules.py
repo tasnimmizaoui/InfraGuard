@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 import boto3
 from botocore.exceptions import ClientError
-
+import json
 from .utils import (
     get_aws_client,
     get_aws_resource,
@@ -67,6 +67,12 @@ class SecurityChecker:
         
         if self.config.check_s3_encryption:
             self.findings.extend(self.check_s3_encryption())
+        
+        if self.config.check_s3_versioning:
+            self.findings.extend(self.check_s3_versioning())
+
+        if self.config.check_s3_bucket_policy:
+            self.findings.extend(self.check_s3_bucket_policy())
         
         # CloudTrail Checks
         if self.config.check_cloudtrail_enabled:
@@ -531,8 +537,6 @@ class SecurityChecker:
             handle_aws_error(e, "Checking S3 bucket policies")
         
         return findings
-    
-        
 
     def check_s3_encryption(self) -> List[Dict[str, Any]]:
         """
@@ -542,6 +546,9 @@ class SecurityChecker:
         
         Returns:
             List of findings for unencrypted S3 buckets
+
+        Note: As of April 2026, SSE-C is disabled by default.
+        This check verifies any encryption is configured.
         """
         findings = []
         self.logger.info("Checking S3 bucket encryption...")
@@ -557,8 +564,21 @@ class SecurityChecker:
                 
                 try:
                     # Check for default encryption
-                    s3_client.get_bucket_encryption(Bucket=bucket_name)
-                    # If we get here, encryption is configured
+                    encryption = s3_client.get_bucket_encryption(Bucket=bucket_name)
+                    rules = encryption.get('ServerSideEncryptionConfiguration', {}).get('Rules', [])
+                                        
+                    for rule in rules:
+                     sse_algorithm = rule.get('ApplyServerSideEncryptionByDefault', {}).get('SSEAlgorithm')
+            
+                    # Info: Détectez SSE-C (rare après April 2026)
+                    if sse_algorithm == 'SSE-C':
+                        findings.append(create_finding(
+                            category="S3",
+                            severity="INFO",
+                            description=f"Bucket '{bucket_name}' uses SSE-C (customer keys)",
+                            resource=f"arn:aws:s3:::{bucket_name}",
+                            recommendation="Consider migrating to SSE-KMS for better key management"
+                        ))
                     
                 except ClientError as e:
                     if e.response['Error']['Code'] == 'ServerSideEncryptionConfigurationNotFoundError':
