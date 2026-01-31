@@ -372,7 +372,9 @@ class SecurityChecker:
         self.logger.info("Checking for public S3 buckets...")
         
         try:
-            s3_client = get_aws_client('s3', self.config.aws_region)
+            # WE chose client vs ressources here , beacuse we need aws API calls that dosen't exist in resource : 
+            # ACL , Bucket policy , .....
+            s3_client = get_aws_client('s3', self.config.aws_region) 
             
             # List all buckets
             response = s3_client.list_buckets()
@@ -440,6 +442,98 @@ class SecurityChecker:
         
         return findings
     
+
+    def check_s3_versioning(self) -> List[Dict[str, Any]]:
+        """
+        Check if S3 buckets have versioning enabled.
+        
+        Versioning helps protect against accidental deletions and overwrites.
+        
+        Returns:
+            List of findings for S3 buckets without versioning
+        """
+        findings = []
+        self.logger.info("Checking S3 bucket versioning...")
+        
+        try:
+            s3_client = get_aws_client('s3', self.config.aws_region)
+            
+            response = s3_client.list_buckets()
+            buckets = response.get('Buckets', [])
+            
+            for bucket in buckets:
+                bucket_name = bucket['Name']
+                
+                try:
+                    versioning = s3_client.get_bucket_versioning(Bucket=bucket_name)
+                    status = versioning.get('Status', 'Disabled')
+                    
+                    if status != 'Enabled':
+                        findings.append(create_finding(
+                            category="S3",
+                            severity="LOW",
+                            description=f"S3 bucket '{bucket_name}' does not have versioning enabled",
+                            resource=f"arn:aws:s3:::{bucket_name}",
+                            recommendation="Enable versioning to protect against accidental deletions/overwrites"
+                        ))
+                
+                except ClientError as e:
+                    handle_aws_error(e, f"Checking versioning for bucket {bucket_name}")
+        
+        except Exception as e:
+            handle_aws_error(e, "Checking S3 versioning")
+        
+        return findings
+    
+    def check_s3_bucket_policy(self) -> List[Dict[str, Any]]:
+        """
+        Check S3 bucket policies for public access.
+        Bucket policies can inadvertently allow public access.
+        Returns:
+            List of findings for S3 bucket policies
+        """
+        findings = []
+        self.logger.info("Checking S3 bucket policies...")
+        
+        try:
+            s3_client = get_aws_client('s3', self.config.aws_region)
+            
+            response = s3_client.list_buckets()
+            buckets = response.get('Buckets', [])
+            
+            for bucket in buckets:
+                bucket_name = bucket['Name']
+                
+                try:
+                    policy_response = s3_client.get_bucket_policy(Bucket=bucket_name)
+                    policy_string = policy_response.get('Policy', '{}')
+                    policy = json.loads(policy_string)
+                    
+                    for statement in policy.get('Statement', []):
+                        effect = statement.get('Effect')
+                        principal = statement.get('Principal')
+                        
+                        if effect == 'Allow' and (principal == '*' or principal == {'AWS': '*'}):
+                            findings.append(create_finding(
+                                category="S3",
+                                severity="HIGH",
+                                description=f"S3 bucket '{bucket_name}' has a public bucket policy",
+                                resource=f"arn:aws:s3:::{bucket_name}",
+                                details={"statement": statement},
+                                recommendation="Restrict bucket policy to specific principals"
+                            ))
+                
+                except ClientError as e:
+                    if e.response['Error']['Code'] != 'NoSuchBucketPolicy':
+                        handle_aws_error(e, f"Checking bucket policy for {bucket_name}")
+        
+        except Exception as e:
+            handle_aws_error(e, "Checking S3 bucket policies")
+        
+        return findings
+    
+        
+
     def check_s3_encryption(self) -> List[Dict[str, Any]]:
         """
         Check if S3 buckets have encryption enabled.

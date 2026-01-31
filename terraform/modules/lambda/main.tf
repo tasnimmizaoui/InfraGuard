@@ -63,7 +63,8 @@ resource "aws_lambda_function" "infraguard_scanner" {
   runtime          = var.python_runtime
   timeout          = var.timeout
   memory_size      = var.memory_size
-
+# Reminder : The AWS Lambda handler is the entry point in the code 
+# that the AWS Lambda service executes when the function is invoked
   environment {
     variables = merge(
       {

@@ -95,7 +95,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "logs" {
 # ============================================
 
 data "aws_iam_policy_document" "cloudtrail_bucket_policy" {
-  # Allow CloudTrail to check bucket ACL
+  # Allow CloudTrail to check bucket ACL : "Can i(cloudTrail ) enter the bucket ? "
   statement {
     sid    = "AWSCloudTrailAclCheck"
     effect = "Allow"
@@ -129,15 +129,17 @@ data "aws_iam_policy_document" "cloudtrail_bucket_policy" {
     ]
 
     resources = [
-      "${aws_s3_bucket.logs.arn}/cloudtrail/*"
-    ]
+      "${aws_s3_bucket.logs.arn}/cloudtrail/*"  
+    ]  # CloudTrail Can only write objects to the cloudtrail/ folder 
 
     condition {
       test     = "StringEquals"
       variable = "s3:x-amz-acl"
       values   = ["bucket-owner-full-control"]
-    }
+    }  # This is a security feature that ensures the bucket owner has full control over the objects written by CloudTrail and not cloudtrail service
+  # Without this it would mean that cloud trail would own the objects it creates , logs , which is not desirable for security and compliance reasons
   }
+
 
   # Allow VPC Flow Logs to write
   statement {
@@ -161,16 +163,16 @@ data "aws_iam_policy_document" "cloudtrail_bucket_policy" {
       test     = "StringEquals"
       variable = "s3:x-amz-acl"
       values   = ["bucket-owner-full-control"]
-    }
+    }  # Same as for cLoudtrail above 
   }
 
   # Allow VPC Flow Logs to check ACL
   statement {
-    sid    = "AWSLogDeliveryAclCheck"
+    sid    = "AWSLogDeliveryAclCheck" # Statement Id for reference 
     effect = "Allow"
 
     principals {
-      type        = "Service"
+      type        = "Service"  # AWS service not an IAM user 
       identifiers = ["delivery.logs.amazonaws.com"]
     }
 

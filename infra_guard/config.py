@@ -53,6 +53,8 @@ class Config:
     # S3 bucket checks
     check_s3_public_access: bool = True
     check_s3_encryption: bool = True
+    check_s3_versioning: bool = True
+    check_s3_bucket_policy: bool = True
     
     # CloudTrail checks
     check_cloudtrail_enabled: bool = True
