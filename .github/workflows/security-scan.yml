@@ -30,7 +30,7 @@ jobs:
   
   security-scan:
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment || 'development' }}
+    environment: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'production') || 'development' }}
     permissions:
      id-token: write
      contents: read
@@ -42,6 +42,19 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 1  # Faster checkout
+      
+      - name: Determine Environment
+        id: env
+        run: |
+          if [ "${{ github.event.inputs.environment }}" != "" ]; then
+            ENV="${{ github.event.inputs.environment }}"
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            ENV="production"
+          else
+            ENV="development"
+          fi
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+          echo "🌍 Running in $ENV environment"
       
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -78,7 +91,7 @@ jobs:
           INFRAGUARD_SNS_TOPIC_ARN: ${{ secrets.INFRAGUARD_SNS_TOPIC_ARN }}
           INFRAGUARD_SLACK_WEBHOOK: ${{ secrets.INFRAGUARD_SLACK_WEBHOOK }}
           INFRAGUARD_LOG_LEVEL: INFO
-          SCAN_ENVIRONMENT: ${{ github.event.inputs.environment || 'development' }}
+          SCAN_ENVIRONMENT: ${{ steps.env.outputs.environment }}
         run: |
           # Create output directory
           mkdir -p ./scan-results
@@ -88,7 +101,7 @@ jobs:
           FINDINGS_FILE="./scan-results/findings-${TIMESTAMP}.json"
           
           # Run security scan based on environment
-          if [ "${{ github.event.inputs.environment || 'development' }}" = "production" ]; then
+          if [ "${{ steps.env.outputs.environment }}" = "production" ]; then
             echo "🔍 Running PRODUCTION security scan (full scope)"
             python main.py check-all --output-file "$FINDINGS_FILE" --output-format json
           else
@@ -130,7 +143,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Environment** | ${{ github.event.inputs.environment || 'development' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Environment** | ${{ steps.env.outputs.environment }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Total Findings** | $TOTAL_FINDINGS |" >> $GITHUB_STEP_SUMMARY
           echo "| **Critical** | $CRITICAL_FINDINGS |" >> $GITHUB_STEP_SUMMARY
           echo "| **Timestamp** | $TIMESTAMP |" >> $GITHUB_STEP_SUMMARY
@@ -191,7 +204,7 @@ jobs:
                     },
                     {
                       "type": "mrkdwn",
-                      "text": "*Environment:*\n${{ github.event.inputs.environment || 'development' }}"
+                      "text": "*Environment:*\n${{ steps.env.outputs.environment }}"
                     },
                     {
                       "type": "mrkdwn",
@@ -279,6 +292,61 @@ jobs:
           name: terraform-plan-${{ github.run_number }}
           path: ./terraform/tfplan.json
           retention-days: 7
+      
+      - name: Scan Terraform Plan (Shift-Left Security)
+        id: plan-scan
+        run: |
+          echo "🔍 Scanning Terraform plan for security issues BEFORE deployment..."
+          
+          # Run plan-time security scan
+          python main.py scan-plan --plan-file terraform/tfplan.json --output-file plan-scan-results.json --output-format json
+          
+          # Parse findings
+          PLAN_TOTAL=$(jq 'if type == "array" then length elif .findings then (.findings | length) else 0 end' plan-scan-results.json 2>/dev/null || echo "0")
+          PLAN_CRITICAL=$(jq '[if type == "array" then .[] elif .findings then .findings[] else empty end | select(.severity == "CRITICAL")] | length' plan-scan-results.json 2>/dev/null || echo "0")
+          PLAN_HIGH=$(jq '[if type == "array" then .[] elif .findings then .findings[] else empty end | select(.severity == "HIGH")] | length' plan-scan-results.json 2>/dev/null || echo "0")
+          
+          echo "total_findings=$PLAN_TOTAL" >> $GITHUB_OUTPUT
+          echo "critical_findings=$PLAN_CRITICAL" >> $GITHUB_OUTPUT
+          echo "high_findings=$PLAN_HIGH" >> $GITHUB_OUTPUT
+          
+          # Create summary
+          echo "## 🛡️ Terraform Plan Security Scan" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **CRITICAL** | $PLAN_CRITICAL |" >> $GITHUB_STEP_SUMMARY
+          echo "| **HIGH** | $PLAN_HIGH |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Total** | $PLAN_TOTAL |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "$PLAN_CRITICAL" -gt 0 ] || [ "$PLAN_HIGH" -gt 0 ]; then
+            echo "### ⚠️ Issues Found in Planned Changes:" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            jq -r '[if type == "array" then .[] elif .findings then .findings[] else empty end | select(.severity == "CRITICAL" or .severity == "HIGH")] | .[] | "- **[\(.severity)] \(.category)**: \(.description)"' plan-scan-results.json >> $GITHUB_STEP_SUMMARY 2>/dev/null || true
+          else
+            echo "### ✅ No Critical or High Issues in Planned Changes" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "✅ Plan scan complete: $PLAN_TOTAL findings ($PLAN_CRITICAL critical, $PLAN_HIGH high)"
+      
+      - name: Upload Plan Scan Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: plan-scan-results-${{ github.run_number }}
+          path: plan-scan-results.json
+          retention-days: 90
+      
+      - name: Security Gate - Block Deployment on Critical Plan Issues
+        if: steps.plan-scan.outputs.critical_findings != '0'
+        run: |
+          echo "::error::❌ CRITICAL security issues detected in Terraform plan! Blocking deployment."
+          echo "Critical issues in planned changes: ${{ steps.plan-scan.outputs.critical_findings }}"
+          echo ""
+          echo "These issues would be INTRODUCED by this deployment:"
+          jq -r '[if type == "array" then .[] elif .findings then .findings[] else empty end | select(.severity == "CRITICAL")] | .[] | "- \(.resource): \(.description)\n  Recommendation: \(.recommendation)"' plan-scan-results.json || true
+          exit 1
       
       - name: Terraform Apply (Auto-approve for main branch)
         if: github.ref == 'refs/heads/main'
