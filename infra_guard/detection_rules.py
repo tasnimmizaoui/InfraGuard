@@ -18,6 +18,16 @@ from .utils import (
     paginate_aws_call
 )
 from .config import Config
+from .policy_engine import (
+    is_s3_bucket_public,
+    is_s3_bucket_unencrypted,
+    is_s3_versioning_disabled,
+    is_s3_bucket_policy_overpermissive,
+    is_s3_object_lock_disabled,
+    is_security_group_overly_permissive,
+    is_iam_policy_overpermissive,
+    normalize_boto3_s3_bucket
+)
 
 
 class SecurityChecker:
