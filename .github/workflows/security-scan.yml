@@ -348,6 +348,18 @@ jobs:
           jq -r '[if type == "array" then .[] elif .findings then .findings[] else empty end | select(.severity == "CRITICAL")] | .[] | "- \(.resource): \(.description)\n  Recommendation: \(.recommendation)"' plan-scan-results.json || true
           exit 1
       
+      - name: Clean Terraform State (remove deleted secrets)
+        continue-on-error: true
+        run: |
+          # Check if secret exists in AWS
+          if ! aws secretsmanager describe-secret \
+            --secret-id infraguard/scanner-credentials \
+            --region ${{ vars.AWS_REGION || 'eu-north-1' }} 2>/dev/null; then
+            
+            echo "Secret doesn't exist in AWS, removing from Terraform state..."
+            terraform state rm module.iam.aws_secretsmanager_secret.infraguard_credentials || true
+          fi
+        working-directory: ./terraform
       - name: Terraform Apply (Auto-approve for main branch)
         if: github.ref == 'refs/heads/main'
         run: terraform apply -auto-approve tfplan
