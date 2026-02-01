@@ -79,7 +79,7 @@ resource "aws_iam_access_key" "infraguard_scanner" {
 resource "aws_secretsmanager_secret" "infraguard_credentials" {
   name                    = "infraguard/scanner-credentials"
   description             = "InfraGuard scanner IAM user credentials"
-  recovery_window_in_days = 7
+  recovery_window_in_days = 0  # Force immediate deletion to allow recreation
 
   tags = var.tags
 }
