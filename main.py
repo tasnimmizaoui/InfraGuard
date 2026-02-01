@@ -24,6 +24,7 @@ from infra_guard.utils import (
     save_findings_log
 )
 from infra_guard.detection_rules import SecurityChecker
+from infra_guard.plan_analyzer import TerraformPlanAnalyzer
 from infra_guard.log_ingestion import CloudTrailIngestion, CloudTrailAnalyzer, VPCFlowLogIngestion
 from infra_guard.alerting import AlertManager
 
@@ -154,6 +155,59 @@ def check_network(config: Config) -> int:
     
     except Exception as e:
         logger.error(f"Error during network check: {str(e)}", exc_info=True)
+        return 1
+
+
+def scan_plan(config: Config, plan_file: str) -> int:
+    """
+    Scan Terraform plan for security issues (shift-left security).
+    
+    Args:
+        config: InfraGuard configuration
+        plan_file: Path to Terraform plan JSON file
+        
+    Returns:
+        Exit code (0 = no critical issues, 1 = critical issues found or error)
+    """
+    logger = logging.getLogger("InfraGuard")
+    
+    try:
+        logger.info(f"Scanning Terraform plan: {plan_file}")
+        
+        # Analyze Terraform plan
+        analyzer = TerraformPlanAnalyzer(config)
+        findings = analyzer.analyze_plan_file(plan_file)
+        
+        # Save findings
+        if config.output_format == 'json':
+            save_findings_json(findings, config.output_file)
+        elif config.output_format == 'csv':
+            save_findings_csv(findings, config.output_file)
+        elif config.output_format == 'log':
+            save_findings_log(findings, config.output_file)
+        
+        # Format and display results
+        alert_manager = AlertManager(config)
+        summary = alert_manager.format_summary(findings)
+        print(summary)
+        
+        # Check if any critical issues found
+        critical_findings = [f for f in findings if f.get('severity') == 'CRITICAL']
+        high_findings = [f for f in findings if f.get('severity') == 'HIGH']
+        
+        if critical_findings:
+            logger.error(f"CRITICAL: {len(critical_findings)} critical security issues found in planned infrastructure!")
+            logger.error("Deployment should be blocked until these issues are resolved.")
+            return 1
+        elif high_findings:
+            logger.warning(f"WARNING: {len(high_findings)} high-severity security issues found in planned infrastructure.")
+            logger.warning("Review these issues before proceeding with deployment.")
+        
+        logger.info(f"Plan scan completed. {len(findings)} total findings ({len(critical_findings)} critical, {len(high_findings)} high).")
+        return 0 if not critical_findings else 1
+    
+    except Exception as e:
+        logger.error(f"Error scanning Terraform plan: {str(e)}", exc_info=True)
         return 1
 
 
@@ -310,6 +364,7 @@ Examples:
   python main.py check-all                    # Run all security checks
   python main.py check-iam                    # Check only IAM
   python main.py check-network                # Check security groups and VPCs
+  python main.py scan-plan --plan-file plan.json  # Scan Terraform plan (shift-left)
   python main.py analyze-cloudtrail --hours 48  # Analyze 48h of CloudTrail
   python main.py analyze-vpc-logs --hours 12    # Analyze 12h of VPC logs
   
@@ -324,7 +379,7 @@ Environment Variables:
     
     parser.add_argument(
         'command',
-        choices=['check-all', 'check-iam', 'check-network', 'analyze-cloudtrail', 'analyze-vpc-logs'],
+        choices=['check-all', 'check-iam', 'check-network', 'scan-plan', 'analyze-cloudtrail', 'analyze-vpc-logs'],
         help='Command to execute'
     )
     
@@ -332,6 +387,12 @@ Environment Variables:
         '--region',
         default=None,
         help='AWS region (overrides AWS_REGION env var)'
+    )
+    
+    parser.add_argument(
+        '--plan-file',
+        default=None,
+        help='Path to Terraform plan JSON file for scan-plan command'
     )
     
     parser.add_argument(
@@ -392,6 +453,11 @@ Environment Variables:
         exit_code = check_iam(config)
     elif args.command == 'check-network':
         exit_code = check_network(config)
+    elif args.command == 'scan-plan':
+        if not args.plan_file:
+            logger.error("--plan-file is required for scan-plan command")
+            sys.exit(1)
+        exit_code = scan_plan(config, args.plan_file)
     elif args.command == 'analyze-cloudtrail':
         exit_code = analyze_cloudtrail(config, args.hours)
     elif args.command == 'analyze-vpc-logs':
