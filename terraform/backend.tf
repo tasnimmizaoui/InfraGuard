@@ -1,8 +1,8 @@
 terraform {
   backend "s3" {
-    bucket         = "infraguard-terraform-state"  # From bootstrap output 
+    bucket         = "infraguard-tfstate-045378075905"  # Unique with account ID
     key            = "infraguard/terraform.tfstate"
-    region         = "us-east-1"
+    region         = "eu-north-1"
     encrypt        = true
     #dynamodb_table = "infraguard-terraform-locks"  # From bootstrap output 
   }
