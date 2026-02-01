@@ -187,3 +187,8 @@ variable "lambda_environment_variables" {
   type        = map(string)
   default     = {}
 }
+variable "github_sha" {
+  description = "Git commit SHA"
+  type        = string
+  default     = "unknown"
+}
