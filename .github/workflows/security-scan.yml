@@ -351,13 +351,43 @@ jobs:
       - name: Clean Terraform State (remove deleted secrets)
         continue-on-error: true
         run: |
-          # Check if secret exists in AWS
-          if ! aws secretsmanager describe-secret \
+          echo "Checking secret status in AWS..."
+          
+          # Check if secret is scheduled for deletion
+          SECRET_STATUS=$(aws secretsmanager describe-secret \
             --secret-id infraguard/scanner-credentials \
-            --region ${{ vars.AWS_REGION || 'eu-north-1' }} 2>/dev/null; then
+            --region ${{ vars.AWS_REGION || 'eu-north-1' }} \
+            2>&1 || echo "NOT_FOUND")
+          
+          if echo "$SECRET_STATUS" | grep -q "DeletionDate"; then
+            echo "⚠️ Secret is scheduled for deletion. Restoring and force-deleting..."
             
+            # Restore the secret
+            aws secretsmanager restore-secret \
+              --secret-id infraguard/scanner-credentials \
+              --region ${{ vars.AWS_REGION || 'eu-north-1' }} 2>/dev/null || echo "Could not restore"
+            
+            sleep 2
+            
+            # Force delete immediately
+            aws secretsmanager delete-secret \
+              --secret-id infraguard/scanner-credentials \
+              --force-delete-without-recovery \
+              --region ${{ vars.AWS_REGION || 'eu-north-1' }} 2>/dev/null || echo "Could not delete"
+            
+            sleep 3
+            
+            # Remove from Terraform state
+            terraform state rm module.iam.aws_secretsmanager_secret.infraguard_credentials || true
+            
+            echo "✅ Cleaned up secret scheduled for deletion"
+            
+          elif echo "$SECRET_STATUS" | grep -q "ResourceNotFoundException"; then
             echo "Secret doesn't exist in AWS, removing from Terraform state..."
             terraform state rm module.iam.aws_secretsmanager_secret.infraguard_credentials || true
+            
+          else
+            echo "✅ Secret exists and is not scheduled for deletion"
           fi
         working-directory: ./terraform
       - name: Terraform Apply (Auto-approve for main branch)
