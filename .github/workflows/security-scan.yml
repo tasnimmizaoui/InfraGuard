@@ -18,11 +18,11 @@ on:
           - staging
           - production
   
-  # Run on push to feature branches (for testing)
+  # Run on push to any branch (including main for deployment)
   push:
-    branches-ignore: [ main, production ]
+    branches: [ main, 'feature/**', 'plan-scanning' ]
   
-  # Run on PR to main (security gate)
+  # Run on PR to main (security gate before merge)
   pull_request:
     branches: [ main ]
 
