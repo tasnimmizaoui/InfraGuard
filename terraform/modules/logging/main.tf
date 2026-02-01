@@ -46,12 +46,12 @@ data "aws_vpc" "default" {
 
 # Create VPC Flow Logs for default VPC
 resource "aws_flow_log" "default_vpc" {
-  count                = var.enable_vpc_flow_logs ? 1 : 0
-  vpc_id               = data.aws_vpc.default[0].id
-  traffic_type         = "ALL"
-  log_destination_type = "s3"
-  log_destination      = "${var.s3_bucket_arn}/${var.vpc_flow_logs_s3_prefix}"
-  max_aggregation_interval = 600  # 10 minutes (cheaper than 1 minute)
+  count                    = var.enable_vpc_flow_logs ? 1 : 0
+  vpc_id                   = data.aws_vpc.default[0].id
+  traffic_type             = "ALL"
+  log_destination_type     = "s3"
+  log_destination          = "${var.s3_bucket_arn}/${var.vpc_flow_logs_s3_prefix}"
+  max_aggregation_interval = 600 # 10 minutes (cheaper than 1 minute)
 
   tags = merge(
     var.tags,
@@ -66,11 +66,11 @@ resource "aws_flow_log" "default_vpc" {
 
 # Optional: Create flow logs for additional VPCs
 resource "aws_flow_log" "additional_vpcs" {
-  for_each             = toset(var.additional_vpc_ids)
-  vpc_id               = each.value
-  traffic_type         = "ALL"
-  log_destination_type = "s3"
-  log_destination      = "${var.s3_bucket_arn}/${var.vpc_flow_logs_s3_prefix}"
+  for_each                 = toset(var.additional_vpc_ids)
+  vpc_id                   = each.value
+  traffic_type             = "ALL"
+  log_destination_type     = "s3"
+  log_destination          = "${var.s3_bucket_arn}/${var.vpc_flow_logs_s3_prefix}"
   max_aggregation_interval = 600
 
   tags = merge(

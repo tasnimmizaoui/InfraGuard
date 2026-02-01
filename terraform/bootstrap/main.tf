@@ -36,9 +36,9 @@ resource "aws_s3_bucket" "terraform_state" {
   bucket = var.state_bucket_name
 
   tags = {
-    Name        = "Terraform State Bucket"
-    Purpose     = "InfraGuard Terraform State"
-    ManagedBy   = "Terraform Bootstrap"
+    Name      = "Terraform State Bucket"
+    Purpose   = "InfraGuard Terraform State"
+    ManagedBy = "Terraform Bootstrap"
   }
 }
 
@@ -84,9 +84,9 @@ resource "aws_dynamodb_table" "terraform_locks" {
   }
 
   tags = {
-    Name        = "Terraform State Lock Table"
-    Purpose     = "InfraGuard Terraform State Locking"
-    ManagedBy   = "Terraform Bootstrap"
+    Name      = "Terraform State Lock Table"
+    Purpose   = "InfraGuard Terraform State Locking"
+    ManagedBy = "Terraform Bootstrap"
   }
 }
 
@@ -116,7 +116,7 @@ output "lock_table_arn" {
 
 output "next_steps" {
   description = "Instructions for configuring backend in main Terraform"
-  value = <<-EOT
+  value       = <<-EOT
     
     ✅ Terraform State Backend Created Successfully!
     

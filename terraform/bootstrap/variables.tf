@@ -8,7 +8,7 @@ variable "state_bucket_name" {
   description = "Name of the S3 bucket for Terraform state"
   type        = string
   default     = "infraguard-terraform-state"
-  
+
   validation {
     condition     = can(regex("^[a-z0-9][a-z0-9-]*[a-z0-9]$", var.state_bucket_name))
     error_message = "Bucket name must be lowercase alphanumeric with hyphens only."

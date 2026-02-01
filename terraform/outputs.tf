@@ -120,7 +120,7 @@ output "lambda_function_url" {
 
 output "quick_start_instructions" {
   description = "Instructions for getting started with InfraGuard"
-  value = <<-EOT
+  value       = <<-EOT
     
     ╔══════════════════════════════════════════════════════════════════╗
     ║          InfraGuard Infrastructure Successfully Deployed!        ║

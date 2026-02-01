@@ -1,1 +1,0 @@
-{"statusCode": 200, "body": "{\"message\": \"InfraGuard scan completed successfully\", \"total_findings\": 1, \"findings_by_severity\": {\"CRITICAL\": 0, \"HIGH\": 0, \"MEDIUM\": 1, \"LOW\": 0}, \"alerts_sent\": 1, \"execution_time_ms\": 298394}"}

@@ -13,37 +13,37 @@ data "aws_region" "current" {}
 data "archive_file" "infraguard_lambda" {
   type        = "zip"
   output_path = "${path.module}/lambda_function.zip"
-  
+
   source {
     content  = file("${path.root}/../lambda_handler.py")
     filename = "lambda_handler.py"
   }
-  
+
   source {
     content  = file("${path.root}/../infra_guard/__init__.py")
     filename = "infra_guard/__init__.py"
   }
-  
+
   source {
     content  = file("${path.root}/../infra_guard/config.py")
     filename = "infra_guard/config.py"
   }
-  
+
   source {
     content  = file("${path.root}/../infra_guard/utils.py")
     filename = "infra_guard/utils.py"
   }
-  
+
   source {
     content  = file("${path.root}/../infra_guard/detection_rules.py")
     filename = "infra_guard/detection_rules.py"
   }
-  
+
   source {
     content  = file("${path.root}/../infra_guard/alerting.py")
     filename = "infra_guard/alerting.py"
   }
-  
+
   source {
     content  = file("${path.root}/../infra_guard/log_ingestion.py")
     filename = "infra_guard/log_ingestion.py"
@@ -63,8 +63,8 @@ resource "aws_lambda_function" "infraguard_scanner" {
   runtime          = var.python_runtime
   timeout          = var.timeout
   memory_size      = var.memory_size
-# Reminder : The AWS Lambda handler is the entry point in the code 
-# that the AWS Lambda service executes when the function is invoked
+  # Reminder : The AWS Lambda handler is the entry point in the code 
+  # that the AWS Lambda service executes when the function is invoked
   environment {
     variables = merge(
       {
