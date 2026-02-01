@@ -77,7 +77,7 @@ resource "aws_iam_access_key" "infraguard_scanner" {
 
 # Store access key in Secrets Manager (secure)
 resource "aws_secretsmanager_secret" "infraguard_credentials" {
-  name                    = "infraguard/scanner-credentials"
+  name                    = "infraguard/scanner-credentials-v2"
   description             = "InfraGuard scanner IAM user credentials"
   recovery_window_in_days = 0 # Force immediate deletion to allow recreation
 
