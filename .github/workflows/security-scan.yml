@@ -54,7 +54,7 @@ jobs:
             ENV="development"
           fi
           echo "environment=$ENV" >> $GITHUB_OUTPUT
-          echo "🌍 Running in $ENV environment"
+          echo " Running in $ENV environment"
       
       - name: Set up Python
         uses: actions/setup-python@v5
