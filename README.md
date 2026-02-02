@@ -1,446 +1,246 @@
-# InfraGuard - AWS Cloud Security Monitoring (Free Tier Friendly)
+# 🛡️ InfraGuard
 
-A lightweight Python-based security monitoring tool for AWS infrastructure that detects common security misconfigurations while staying within AWS free tier limits.
+**Shift-Left AWS Security Monitoring with Automated CI/CD Pipeline**
 
-## Features
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Terraform](https://img.shields.io/badge/terraform-1.6+-purple.svg)](https://www.terraform.io/)
+[![AWS](https://img.shields.io/badge/AWS-Security-orange.svg)](https://aws.amazon.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-- ✅ **IAM Security Monitoring**
-  - Detect unused IAM users
-  - Root account access key detection
-  - Overpermissive IAM policies
-  - Weak password policies
+InfraGuard is a comprehensive AWS security monitoring solution that combines **runtime infrastructure scanning** with **shift-left security** to detect and prevent security misconfigurations before deployment.
 
-- ✅ **Network Security Monitoring**
-  - Security groups open to 0.0.0.0/0
-  - Public EC2 instances
-  - VPC Flow Logs configuration checks
-  - Risky port exposure (SSH, RDP, databases)
+![InfraGuard Architecture](Diagram.png)
 
-- ✅ **S3 Security**
-  - Public bucket detection
-  - Encryption configuration checks
-  - ACL and policy analysis
+## 🌟 Key Features
 
-- ✅ **Audit Log Analysis**
-  - CloudTrail log ingestion and analysis
-  - VPC Flow Log analysis
-  - Root account usage detection
-  - Failed authentication attempts
-  - Privilege escalation detection
+- **🔍 Dual-Mode Security Scanning**
+  - **Runtime Scanning**: Monitor existing AWS infrastructure for security risks
+  - **Plan-Time Scanning**: Analyze Terraform plans before deployment (shift-left)
+  
+- **🚀 Automated CI/CD Pipeline**
+  - GitHub Actions integration with security gates
+  - Blocks deployments with critical security findings
+  - Automatic infrastructure deployment on push to main
 
-- ✅ **Alerting**
-  - AWS SNS integration
-  - Slack webhook support
-  - Multiple output formats (JSON, CSV, log)
+- **☁️ Full Terraform Infrastructure**
+  - CloudTrail for audit logging
+  - VPC Flow Logs for network monitoring
+  - S3 buckets with encryption and versioning
+  - Lambda-based automated scanning
+  - IAM roles following least privilege
 
-- ✅ **Container Security (Optional)**
-  - ECS task definition checks
-  - Privileged container detection
+- **🎯 Comprehensive Security Checks**
+  - **S3**: Public access, encryption, versioning
+  - **Security Groups**: SSH/RDP exposure, overly permissive rules
+  - **IAM**: Overpermissive policies, unused credentials
+  - **CloudTrail**: Audit logging configuration
+  - **VPC**: Flow logs enablement
 
-## Installation
+## 📚 Documentation
+
+- **[Quick Start Guide](docs/QUICKSTART.md)** - Get started in 5 minutes
+- **[Architecture Overview](docs/ARCHITECTURE.md)** - System design and components
+- **[Deployment Guide](docs/DEPLOYMENT.md)** - CI/CD pipeline setup
+- **[Shift-Left Security](docs/SHIFT_LEFT.md)** - Plan-time scanning implementation
+- **[AWS Setup](docs/AWS_SETUP.md)** - AWS prerequisites and configuration
+- **[API Reference](docs/API.md)** - CLI commands and usage
+
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- Python 3.8+
-- AWS CLI configured with credentials
-- AWS account with appropriate IAM permissions
+- Python 3.11+
+- AWS Account
+- Terraform 1.6+
+- GitHub Account (for CI/CD)
 
-### Setup
-
-1. **Clone or create the project:**
-   ```bash
-   cd InfraGuard
-   ```
-
-2. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Configure AWS credentials:**
-   ```bash
-   aws configure
-   ```
-   Or set environment variables:
-   ```bash
-   export AWS_ACCESS_KEY_ID=your_access_key
-   export AWS_SECRET_ACCESS_KEY=your_secret_key
-   export AWS_REGION=us-east-1
-   ```
-
-## Configuration
-
-InfraGuard uses environment variables for configuration:
+### 1. Clone and Install
 
 ```bash
-# Required
-export AWS_REGION=us-east-1
-
-# Optional - for log analysis
-export INFRAGUARD_S3_BUCKET=your-logs-bucket
-
-# Optional - for alerts
-export INFRAGUARD_SNS_TOPIC_ARN=arn:aws:sns:us-east-1:123456789:infraguard-alerts
-export INFRAGUARD_SLACK_WEBHOOK=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
-
-# Optional - logging
-export INFRAGUARD_LOG_LEVEL=INFO
+git clone https://github.com/yourusername/InfraGuard.git
+cd InfraGuard
+pip install -r requirements.txt
 ```
 
-## Usage
-
-### Run All Security Checks
+### 2. Configure AWS
 
 ```bash
+aws configure
+export AWS_REGION=eu-north-1
+```
+
+### 3. Run Local Security Scan
+
+```bash
+# Scan existing infrastructure
 python main.py check-all
+
+# Scan Terraform plan before deployment
+terraform plan -out=tfplan
+terraform show -json tfplan > tfplan.json
+python main.py scan-plan --plan-file tfplan.json
 ```
 
-This runs all enabled security checks and outputs findings in JSON format.
-
-### Check Only IAM
+### 4. Deploy Infrastructure
 
 ```bash
+# Bootstrap Terraform backend
+cd terraform/bootstrap
+terraform init
+terraform apply
+
+# Deploy main infrastructure
+cd ..
+terraform init
+terraform apply
+```
+
+See [Quick Start Guide](docs/QUICKSTART.md) for detailed instructions.
+
+## 🏛️ Architecture
+
+```
+┌──────────────────────────────────────┐
+│       GitHub Actions Pipeline          │
+│  (Push to main triggers deployment)   │
+└────────────┬─────────────────────────┘
+             │
+     ┌───────┼─────────┐
+     │                    │
+┌────┴────┐          ┌────┴────┐
+│ Runtime  │          │ Plan-Time │
+│ Scanning │          │ Scanning  │
+│ (Existing)│          │ (Shift-  │
+│   Infra)  │          │   Left)   │
+└────┬────┘          └────┬────┘
+     │                    │
+     └───────┬───────────┘
+            │
+    ┌───────┴───────┐
+    │ Security Gate  │
+    │ (Block on     │
+    │  Critical)    │
+    └───────┬───────┘
+            │
+    ┌───────┴───────┐
+    │   Terraform   │
+    │     Apply     │
+    └───────┬───────┘
+            │
+    ┌───────┴────────────────┐
+    │  AWS Infrastructure    │
+    │ • CloudTrail          │
+    │ • VPC Flow Logs      │
+    │ • Lambda Scanner     │
+    │ • S3 Buckets         │
+    └──────────────────────┘
+```
+
+See [Architecture Documentation](docs/ARCHITECTURE.md) for details.
+
+## 📊 Usage Examples
+
+### Runtime Scanning
+
+```bash
+# Scan all AWS resources
+python main.py check-all --output-file findings.json
+
+# Scan specific services
 python main.py check-iam
-```
-
-### Check Network Security
-
-```bash
+python main.py check-s3
 python main.py check-network
 ```
 
-### Analyze CloudTrail Logs
+### Plan-Time Scanning (Shift-Left)
 
 ```bash
-# Analyze last 24 hours
-python main.py analyze-cloudtrail
-
-# Analyze last 48 hours
-python main.py analyze-cloudtrail --hours 48
+# Create and scan Terraform plan
+cd terraform
+terraform plan -out=tfplan
+terraform show -json tfplan > tfplan.json
+python ../main.py scan-plan --plan-file tfplan.json
 ```
 
-### Analyze VPC Flow Logs
+### CI/CD Pipeline
 
-```bash
-# Analyze last 24 hours
-python main.py analyze-vpc-logs
+The pipeline automatically runs on every push to `main`:
 
-# Analyze last 12 hours
-python main.py analyze-vpc-logs --hours 12
-```
+1. **Security Scan** - Scans existing AWS infrastructure
+2. **Security Gate** - Blocks on critical findings
+3. **Terraform Plan** - Creates deployment plan
+4. **Plan Scan** - Analyzes planned changes (shift-left)
+5. **Deploy** - Applies infrastructure if all checks pass
 
-### Output Options
+## 🛠️ Development
 
-```bash
-# Save to JSON file
-python main.py check-all --output-format json --output-file findings.json
-
-# Save to CSV
-python main.py check-all --output-format csv --output-file findings.csv
-
-# Output as logs
-python main.py check-all --output-format log --output-file findings.log
-```
-
-## AWS Free Tier Considerations
-
-InfraGuard is designed to minimize AWS costs:
-
-### Free Services Used:
-- **IAM**: Completely free
-- **CloudTrail**: One trail is free
-- **VPC Flow Logs**: Logs to S3 are cheap (minimal storage costs)
-- **SNS**: First 1,000 notifications/month free
-- **S3**: 5GB storage, 20,000 GET requests, 2,000 PUT requests free/month
-
-### Services to Be Careful With:
-- **EC2 instances**: Limited to 750 hours/month on t2.micro or t3.micro
-- **Lambda**: 1M free requests/month, 400,000 GB-seconds compute
-- **CloudWatch Logs**: 5GB ingestion, storage costs apply
-- **ECS/EKS**: EKS has hourly cluster costs (~$72/month)
-
-### Cost Optimization Tips:
-1. Run InfraGuard checks manually or schedule infrequently (e.g., daily)
-2. Avoid enabling ECS/EKS checks unless needed
-3. Use S3 for logs instead of CloudWatch Logs
-4. Limit CloudTrail to one trail
-5. Set max_files and max_events limits in code to control data processing
-
-## IAM Permissions Required
-
-InfraGuard needs the following IAM permissions (minimum):
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "iam:ListUsers",
-        "iam:GetUser",
-        "iam:ListAccessKeys",
-        "iam:GetAccessKeyLastUsed",
-        "iam:GetAccountSummary",
-        "iam:ListPolicies",
-        "iam:GetPolicy",
-        "iam:GetPolicyVersion",
-        "iam:GetAccountPasswordPolicy",
-        "ec2:DescribeSecurityGroups",
-        "ec2:DescribeVpcs",
-        "ec2:DescribeFlowLogs",
-        "ec2:DescribeInstances",
-        "s3:ListAllMyBuckets",
-        "s3:GetBucketAcl",
-        "s3:GetBucketPublicAccessBlock",
-        "s3:GetEncryptionConfiguration",
-        "s3:GetObject",
-        "s3:ListBucket",
-        "cloudtrail:ListTrails",
-        "cloudtrail:GetTrailStatus",
-        "cloudtrail:GetTrail",
-        "ecs:ListClusters",
-        "ecs:ListTaskDefinitions",
-        "ecs:DescribeTaskDefinition",
-        "sns:Publish"
-      ],
-      "Resource": "*"
-    }
-  ]
-}
-```
-
-For read-only security scanning, you can use the AWS managed policy: `SecurityAudit`
-
-## Setting Up Alerts
-
-### SNS Alerts
-
-1. Create an SNS topic:
-   ```bash
-   aws sns create-topic --name infraguard-alerts
-   ```
-
-2. Subscribe your email:
-   ```bash
-   aws sns subscribe \
-     --topic-arn arn:aws:sns:us-east-1:123456789:infraguard-alerts \
-     --protocol email \
-     --notification-endpoint your-email@example.com
-   ```
-
-3. Set environment variable:
-   ```bash
-   export INFRAGUARD_SNS_TOPIC_ARN=arn:aws:sns:us-east-1:123456789:infraguard-alerts
-   ```
-
-### Slack Alerts
-
-1. Create a Slack Incoming Webhook:
-   - Go to https://api.slack.com/messaging/webhooks
-   - Create a new app and enable Incoming Webhooks
-   - Copy the webhook URL
-
-2. Set environment variable:
-   ```bash
-   export INFRAGUARD_SLACK_WEBHOOK=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
-   ```
-
-## Setting Up CloudTrail and VPC Flow Logs
-
-### Enable CloudTrail (if not already enabled):
-
-```bash
-# Create S3 bucket for logs
-aws s3 mb s3://your-infraguard-logs --region us-east-1
-
-# Create CloudTrail
-aws cloudtrail create-trail \
-  --name infraguard-trail \
-  --s3-bucket-name your-infraguard-logs
-
-# Start logging
-aws cloudtrail start-logging --name infraguard-trail
-```
-
-### Enable VPC Flow Logs:
-
-```bash
-# Get your VPC ID
-aws ec2 describe-vpcs
-
-# Create flow logs to S3
-aws ec2 create-flow-logs \
-  --resource-type VPC \
-  --resource-ids vpc-xxxxxxxx \
-  --traffic-type ALL \
-  --log-destination-type s3 \
-  --log-destination arn:aws:s3:::your-infraguard-logs/vpc-flow-logs/
-```
-
-## Example Output
-
-```json
-{
-  "timestamp": "2026-01-26T10:30:00.000000",
-  "total_findings": 3,
-  "findings": [
-    {
-      "timestamp": "2026-01-26T10:30:00.000000",
-      "category": "SecurityGroup",
-      "severity": "HIGH",
-      "description": "Security group 'web-servers' has risky port 22 open to internet",
-      "resource": "sg-0123456789abcdef",
-      "details": {
-        "group_name": "web-servers",
-        "vpc_id": "vpc-12345678",
-        "protocol": "tcp",
-        "from_port": 22,
-        "to_port": 22
-      },
-      "recommendation": "Restrict access to specific IP ranges"
-    }
-  ]
-}
-```
-
-## Testing Locally
-
-### 1. Test IAM Checks (requires AWS credentials):
-
-```python
-from infra_guard.config import Config
-from infra_guard.detection_rules import SecurityChecker
-from infra_guard.utils import setup_logging
-
-# Setup
-setup_logging('DEBUG')
-config = Config()
-config.aws_region = 'us-east-1'
-
-# Run checks
-checker = SecurityChecker(config)
-findings = checker.check_iam_unused_users()
-
-print(f"Found {len(findings)} issues")
-for finding in findings:
-    print(f"  - {finding['description']}")
-```
-
-### 2. Test Security Group Checks:
-
-```python
-checker = SecurityChecker(config)
-findings = checker.check_security_groups()
-
-for finding in findings:
-    print(f"[{finding['severity']}] {finding['description']}")
-```
-
-### 3. Test CloudTrail Analysis (requires S3 bucket with logs):
-
-```python
-from infra_guard.log_ingestion import CloudTrailIngestion, CloudTrailAnalyzer
-
-config.s3_bucket = 'your-logs-bucket'
-ingestion = CloudTrailIngestion(config)
-analyzer = CloudTrailAnalyzer()
-
-events = ingestion.get_recent_events(hours=24)
-root_usage = analyzer.find_root_account_usage(events)
-
-print(f"Root account used {len(root_usage)} times in last 24h")
-```
-
-## Scheduling (Optional)
-
-### Run daily via cron (Linux/Mac):
-
-```bash
-# Add to crontab (crontab -e)
-0 9 * * * cd /path/to/InfraGuard && python main.py check-all --output-file /var/log/infraguard/$(date +\%Y\%m\%d).json
-```
-
-### Run via AWS Lambda (advanced):
-
-1. Package InfraGuard as a Lambda function
-2. Set CloudWatch Events to trigger daily
-3. Use Lambda's built-in AWS credentials
-4. Stay within free tier: 1M invocations/month
-
-### Run via GitHub Actions (free):
-
-```yaml
-name: InfraGuard Security Scan
-on:
-  schedule:
-    - cron: '0 9 * * *'  # Daily at 9 AM UTC
-  workflow_dispatch:
-
-jobs:
-  security-scan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
-        with:
-          python-version: '3.11'
-      - run: pip install -r requirements.txt
-      - run: python main.py check-all
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: us-east-1
-          INFRAGUARD_SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
-```
-
-## Project Structure
+### Project Structure
 
 ```
 InfraGuard/
-├── infra_guard/
-│   ├── __init__.py           # Package initialization
-│   ├── config.py             # Configuration management
-│   ├── utils.py              # Helper functions
-│   ├── log_ingestion.py      # CloudTrail and VPC Flow Log parsing
-│   ├── detection_rules.py    # Security check implementations
-│   └── alerting.py           # SNS and Slack alerting
-├── main.py                   # CLI entry point
-├── requirements.txt          # Python dependencies
-├── README.md                 # This file
-├── .env.example             # Example environment variables
-└── tests/                    # Unit tests (optional)
+├── infra_guard/          # Core Python package
+│   ├── policy_engine.py  # Reusable security policies
+│   ├── plan_analyzer.py  # Terraform plan scanner
+│   ├── detection_rules.py # Runtime scanner
+│   └── ...
+├── terraform/            # Infrastructure as Code
+│   ├── modules/          # Reusable Terraform modules
+│   ├── bootstrap/        # Backend initialization
+│   └── main.tf           # Main configuration
+├── .github/workflows/    # CI/CD pipeline
+│   └── security-scan.yml
+├── docs/                 # Documentation
+├── tests/                # Test suites
+└── main.py               # CLI entry point
 ```
 
-## Troubleshooting
+### Running Tests
 
-### "NoCredentialsError"
-- Ensure AWS CLI is configured: `aws configure`
-- Or set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables
+```bash
+# Run test pipeline locally
+bash test_pipeline.sh
 
-### "AccessDenied" errors
-- Verify your IAM user/role has necessary permissions
-- Consider using the AWS managed `SecurityAudit` policy
+# Test with insecure configuration
+cd test_plan/insecure_test
+terraform plan -out=tfplan
+terraform show -json tfplan > tfplan.json
+python ../../main.py scan-plan --plan-file tfplan.json
+```
 
-### "S3 bucket not configured"
-- Set INFRAGUARD_S3_BUCKET environment variable
-- Or skip log analysis commands (check-all still works)
+## 📝 Severity Levels
 
-### No findings detected
-- This is good! Your AWS infrastructure is properly configured
-- Try running with `--log-level DEBUG` to see more details
+- **🔴 CRITICAL**: Immediate security risk (e.g., S3 bucket public, default security group open)
+- **🟠 HIGH**: Significant security concern (e.g., SSH open to internet, no CloudTrail)
+- **🟡 MEDIUM**: Moderate security issue (e.g., no VPC Flow Logs)
+- **🟢 LOW**: Best practice recommendation (e.g., S3 versioning disabled)
 
+## 🤝 Contributing
 
-## Security Notice
+Contributions are welcome! Please:
 
-InfraGuard is a monitoring tool and does not make changes to your AWS infrastructure. However:
-- Protect your AWS credentials
-- Review findings before taking action
-- Use read-only IAM policies when possible
-- Keep your dependencies updated
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## Disclaimer
+## 📜 License
 
-This tool is provided as-is for security monitoring purposes. Always verify findings before taking remediation actions. The authors are not responsible for any changes made to your AWS infrastructure based on this tool's output.
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## ❤️ Acknowledgments
+
+- Inspired by AWS security best practices
+- Built with Terraform, Python, and GitHub Actions
+- Shift-left security methodology
+
+## 📞 Support
+
+For questions or issues:
+- Open an issue on GitHub
+- Check the [documentation](docs/)
+- Review [examples](test_plan/)
 
 ---
+
+**Built with ❤️ for AWS Security**

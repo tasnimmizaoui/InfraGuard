@@ -49,7 +49,7 @@ variable "s3_bucket_name" {
 variable "log_retention_days" {
   description = "Number of days to retain logs before deletion"
   type        = number
-  default     = 90
+  default     = 30
 }
 
 # ============================================
