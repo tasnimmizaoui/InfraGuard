@@ -21,6 +21,12 @@ on:
   # Run on push to any branch (including main for deployment)
   push:
     branches: [ main, 'feature/**', 'plan-scanning' ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'Screenshots/**'
+      - 'README.md'
+      - 'LICENSE'
   
   # Run on PR to main (security gate before merge)
   pull_request:
