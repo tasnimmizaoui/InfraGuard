@@ -1,0 +1,77 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+!README.md
+docs/
+Screenshots/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Terraform
+terraform/
+*.tfstate
+*.tfstate.backup
+.terraform/
+*.tfvars
+!terraform.tfvars.example
+
+# CI/CD
+.github/
+
+# Logs
+*.log
+infraguard.log
+
+# Temporary files
+test-*.json
+findings-*.json
+scan-results/
+temp/
+*.tmp
+
+# Secrets
+.env
+secrets.txt
+*.pem
+*.key
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+test_plan/
+test_pipeline.sh
+examples.py
+response.json

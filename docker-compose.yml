@@ -1,0 +1,85 @@
+services:
+  # InfraGuard security scanner
+  infraguard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: infraguard:latest
+    container_name: infraguard-scanner
+    
+    # AWS credentials (use one method)
+    environment:
+      # Option 1: Direct credentials (for testing)
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION:-eu-north-1}
+      
+      # Option 2: AWS profile (mount ~/.aws)
+      # - AWS_PROFILE=default
+      
+      # InfraGuard configuration
+      - INFRAGUARD_S3_BUCKET=${INFRAGUARD_S3_BUCKET}
+      - INFRAGUARD_SNS_TOPIC_ARN=${INFRAGUARD_SNS_TOPIC_ARN}
+      - INFRAGUARD_SLACK_WEBHOOK=${INFRAGUARD_SLACK_WEBHOOK}
+      - INFRAGUARD_LOG_LEVEL=${INFRAGUARD_LOG_LEVEL:-INFO}
+    
+    # Mount AWS credentials (Option 2)
+    volumes:
+      # AWS CLI config (mounted read-only)
+      - ~/.aws:/home/infraguard/.aws:ro
+      
+      # Mount output directory for scan results
+      - ./scan-results:/app/scan-results
+    
+    # Override default command
+    # Uncomment and modify to run different scans
+    # command: check-all --output-file /app/scan-results/findings.json
+    
+    # Restart policy
+    restart: "no"
+    
+    # Network mode
+    network_mode: bridge
+
+  # One-time scan service
+  scan-all:
+    extends: infraguard
+    container_name: infraguard-scan-all
+    command: check-all --output-file /app/scan-results/findings.json --output-format json
+    profiles:
+      - scan
+
+  # IAM-only scan
+  scan-iam:
+    extends: infraguard
+    container_name: infraguard-scan-iam
+    command: check-iam --output-file /app/scan-results/iam-findings.json --output-format json
+    profiles:
+      - scan
+    
+  # Network-only scan
+  scan-network:
+    extends: infraguard
+    container_name: infraguard-scan-network
+    command: check-network --output-file /app/scan-results/network-findings.json --output-format json
+    profiles:
+      - scan
+
+  # S3-only scan
+  scan-s3:
+    extends: infraguard
+    container_name: infraguard-scan-s3
+    command: check-s3 --output-file /app/scan-results/s3-findings.json --output-format json
+    profiles:
+      - scan
+
+  # Terraform plan scan
+  scan-plan:
+    extends: infraguard
+    container_name: infraguard-scan-plan
+    command: scan-plan --plan-file /app/terraform/tfplan.json --output-file /app/scan-results/plan-findings.json
+    volumes:
+      - ./terraform:/app/terraform:ro
+      - ./scan-results:/app/scan-results
+    profiles:
+      - scan
