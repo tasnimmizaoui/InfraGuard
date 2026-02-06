@@ -3,40 +3,43 @@
 **Shift-Left AWS Security Monitoring with Automated CI/CD Pipeline**
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://hub.docker.com/r/tasnimmizaoui/infraguard)
 [![Terraform](https://img.shields.io/badge/terraform-1.6+-purple.svg)](https://www.terraform.io/)
 [![AWS](https://img.shields.io/badge/AWS-Security-orange.svg)](https://aws.amazon.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 InfraGuard is a comprehensive AWS security monitoring solution that combines **runtime infrastructure scanning** with **shift-left security** to detect and prevent security misconfigurations before deployment.
 
+**🐳 Now available on Docker Hub! Just `docker pull tasnimmizaoui/infraguard:latest` and start scanning.**
+
 ![InfraGuard Architecture](Diagram.png)
 
-## 🌟 Key Features
+##  Key Features
 
-- **🔍 Dual-Mode Security Scanning**
+- **Dual-Mode Security Scanning**
   - **Runtime Scanning**: Monitor existing AWS infrastructure for security risks
   - **Plan-Time Scanning**: Analyze Terraform plans before deployment (shift-left)
   
-- **🚀 Automated CI/CD Pipeline**
+- **Automated CI/CD Pipeline**
   - GitHub Actions integration with security gates
   - Blocks deployments with critical security findings
   - Automatic infrastructure deployment on push to main
 
-- **☁️ Full Terraform Infrastructure**
+- **Full Terraform Infrastructure**
   - CloudTrail for audit logging
   - VPC Flow Logs for network monitoring
   - S3 buckets with encryption and versioning
   - Lambda-based automated scanning
   - IAM roles following least privilege
 
-- **🎯 Comprehensive Security Checks**
+- **Comprehensive Security Checks**
   - **S3**: Public access, encryption, versioning
   - **Security Groups**: SSH/RDP exposure, overly permissive rules
   - **IAM**: Overpermissive policies, unused credentials
   - **CloudTrail**: Audit logging configuration
   - **VPC**: Flow logs enablement
 
-## 📚 Documentation
+## Documentation
 
 - **[Quick Start Guide](docs/QUICKSTART.md)** - Get started in 5 minutes
 - **[Architecture Overview](docs/ARCHITECTURE.md)** - System design and components
@@ -45,34 +48,70 @@ InfraGuard is a comprehensive AWS security monitoring solution that combines **r
 - **[AWS Setup](docs/AWS_SETUP.md)** - AWS prerequisites and configuration
 - **[API Reference](docs/API.md)** - CLI commands and usage
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### Prerequisites
 
-- Python 3.11+
-- AWS Account
-- Terraform 1.6+
-- GitHub Account (for CI/CD)
+- Docker (for easiest setup) OR Python 3.11+
+- AWS Account with configured credentials
+- Terraform 1.6+ (optional, for infrastructure deployment)
+- GitHub Account (optional, for CI/CD)
 
-### 1. Clone and Install
+### Option 1: Docker Hub (Fastest - No Build Required) ⚡
 
 ```bash
-git clone https://github.com/yourusername/InfraGuard.git
+# Pull the pre-built image from Docker Hub
+docker pull yourusername/infraguard:latest
+
+# Run security scan (mount your AWS credentials)
+docker run --rm \
+  -v ~/.aws:/home/infraguard/.aws:ro \
+  -e AWS_REGION=eu-north-1 \
+  yourusername/infraguard:latest check-all
+
+# Run specific scans
+docker run --rm -v ~/.aws:/home/infraguard/.aws:ro -e AWS_REGION=eu-north-1 \
+  yourusername/infraguard:latest check-iam
+
+docker run --rm -v ~/.aws:/home/infraguard/.aws:ro -e AWS_REGION=eu-north-1 \
+  yourusername/infraguard:latest check-network
+```
+
+**Windows PowerShell:**
+```powershell
+docker pull yourusername/infraguard:latest
+
+docker run --rm `
+  -v C:\Users\$env:USERNAME\.aws:/home/infraguard/.aws:ro `
+  -e AWS_REGION=eu-north-1 `
+  yourusername/infraguard:latest check-all
+```
+
+### Option 2: Docker Compose (For Development)
+
+```bash
+# Clone repository
+git clone https://github.com/tasnimmizaoui/InfraGuard.git
+cd InfraGuard
+
+# Build and run
+docker-compose build
+docker-compose run --rm infraguard check-all
+```
+
+### Option 3: Local Python Installation
+
+```bash
+# Clone and install
+git clone https://github.com/tasnimmizaoui/InfraGuard.git
 cd InfraGuard
 pip install -r requirements.txt
-```
 
-### 2. Configure AWS
-
-```bash
+# Configure AWS
 aws configure
 export AWS_REGION=eu-north-1
-```
 
-### 3. Run Local Security Scan
-
-```bash
-# Scan existing infrastructure
+# Run security scan
 python main.py check-all
 
 # Scan Terraform plan before deployment
@@ -97,27 +136,27 @@ terraform apply
 
 See [Quick Start Guide](docs/QUICKSTART.md) for detailed instructions.
 
-## 🏛️ Architecture
+##  Architecture
 
 ```
 ┌──────────────────────────────────────┐
-│       GitHub Actions Pipeline          │
-│  (Push to main triggers deployment)   │
+│       GitHub Actions Pipeline        │
+│  (Push to main triggers deployment)  │
 └────────────┬─────────────────────────┘
              │
-     ┌───────┼─────────┐
-     │                    │
-┌────┴────┐          ┌────┴────┐
-│ Runtime  │          │ Plan-Time │
-│ Scanning │          │ Scanning  │
-│ (Existing)│          │ (Shift-  │
-│   Infra)  │          │   Left)   │
-└────┬────┘          └────┬────┘
-     │                    │
-     └───────┬───────────┘
+     ┌───────┼──────────────┐
+     │                      │
+┌────┴──────┐          ┌────┴────┐
+│ Runtime   │          │Plan-Time│
+│ Scanning  │          │ Scanning│
+│ (Existing)│          │ (Shift- │
+│   Infra)  │          │   Left) │
+└────┬──────┘          └────┬────┘
+     │                      │
+     └──────┬───────────────┘
             │
     ┌───────┴───────┐
-    │ Security Gate  │
+    │ Security Gate │
     │ (Block on     │
     │  Critical)    │
     └───────┬───────┘
@@ -127,9 +166,9 @@ See [Quick Start Guide](docs/QUICKSTART.md) for detailed instructions.
     │     Apply     │
     └───────┬───────┘
             │
-    ┌───────┴────────────────┐
-    │  AWS Infrastructure    │
-    │ • CloudTrail          │
+    ┌───────┴──────────────┐
+    │  AWS Infrastructure  │
+    │ • CloudTrail         │
     │ • VPC Flow Logs      │
     │ • Lambda Scanner     │
     │ • S3 Buckets         │
@@ -138,7 +177,7 @@ See [Quick Start Guide](docs/QUICKSTART.md) for detailed instructions.
 
 See [Architecture Documentation](docs/ARCHITECTURE.md) for details.
 
-## 📊 Usage Examples
+##  Usage Examples
 
 ### Runtime Scanning
 
@@ -172,7 +211,7 @@ The pipeline automatically runs on every push to `main`:
 4. **Plan Scan** - Analyzes planned changes (shift-left)
 5. **Deploy** - Applies infrastructure if all checks pass
 
-## 🛠️ Development
+##  Development
 
 ### Project Structure
 
@@ -224,23 +263,6 @@ Contributions are welcome! Please:
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## 📜 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## ❤️ Acknowledgments
-
-- Inspired by AWS security best practices
-- Built with Terraform, Python, and GitHub Actions
-- Shift-left security methodology
-
-## 📞 Support
-
-For questions or issues:
-- Open an issue on GitHub
-- Check the [documentation](docs/)
-- Review [examples](test_plan/)
-
 ---
 
-**Built with ❤️ for AWS Security**
+**Built By HungryHeidi for AWS Security**

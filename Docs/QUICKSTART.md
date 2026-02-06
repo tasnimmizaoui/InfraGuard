@@ -1,12 +1,66 @@
 # Quick Start Guide for InfraGuard
 
-## 1. Install Dependencies
+## Choose Your Setup Method
+
+### Option A: Docker Hub (Fastest - Just Pull & Run) ⚡
+
+No build required! Pull the pre-built image and start scanning immediately.
+
+```bash
+# 1. Pull the image (one-time)
+docker pull yourusername/infraguard:latest
+
+# 2. Run security scan
+docker run --rm \
+  -v ~/.aws:/home/infraguard/.aws:ro \
+  -e AWS_REGION=eu-north-1 \
+  yourusername/infraguard:latest check-all
+
+# That's it! See beautiful colored output 🎨
+```
+
+**Windows PowerShell:**
+```powershell
+# Pull image
+docker pull yourusername/infraguard:latest
+
+# Run scan
+docker run --rm `
+  -v C:\Users\$env:USERNAME\.aws:/home/infraguard/.aws:ro `
+  -e AWS_REGION=eu-north-1 `
+  yourusername/infraguard:latest check-all
+```
+
+**Save scan results:**
+```bash
+docker run --rm \
+  -v ~/.aws:/home/infraguard/.aws:ro \
+  -v $(pwd)/scan-results:/app/scan-results \
+  -e AWS_REGION=eu-north-1 \
+  yourusername/infraguard:latest check-all --output-file /app/scan-results/findings.json
+```
+
+### Option B: Docker Compose (For Development)
+
+```bash
+# Clone repository
+git clone https://github.com/yourusername/InfraGuard.git
+cd InfraGuard
+
+# Build and run
+docker-compose build
+docker-compose run --rm infraguard check-all
+```
+
+### Option C: Local Python Installation
+
+#### 1. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## 2. Configure AWS Credentials
+#### 2. Configure AWS Credentials
 
 ```bash
 aws configure
@@ -15,10 +69,10 @@ aws configure
 Enter your:
 - AWS Access Key ID
 - AWS Secret Access Key
-- Default region (e.g., us-east-1)
+- Default region (e.g., eu-north-1)
 - Default output format (json)
 
-## 3. Run Your First Security Scan
+#### 3. Run Your First Security Scan
 
 ```bash
 # Check IAM security
@@ -139,4 +193,4 @@ python main.py check-all --log-level DEBUG
 
 ---
 
-For full documentation, see [README.md](README.md)
+For full documentation, see [README.md]()
