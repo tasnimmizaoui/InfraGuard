@@ -9,18 +9,20 @@ services:
     
     # AWS credentials (use one method)
     environment:
-      # Option 1: Direct credentials (for testing)
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      # AWS region (required)
       - AWS_REGION=${AWS_REGION:-eu-north-1}
       
-      # Option 2: AWS profile (mount ~/.aws)
+      # Optional: Direct credentials (uncomment if not using mounted credentials)
+      # - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      # - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      
+      # Optional: AWS profile (mount ~/.aws)
       # - AWS_PROFILE=default
       
-      # InfraGuard configuration
-      - INFRAGUARD_S3_BUCKET=${INFRAGUARD_S3_BUCKET}
-      - INFRAGUARD_SNS_TOPIC_ARN=${INFRAGUARD_SNS_TOPIC_ARN}
-      - INFRAGUARD_SLACK_WEBHOOK=${INFRAGUARD_SLACK_WEBHOOK}
+      # Optional: InfraGuard configuration
+      - INFRAGUARD_S3_BUCKET=${INFRAGUARD_S3_BUCKET:-}
+      - INFRAGUARD_SNS_TOPIC_ARN=${INFRAGUARD_SNS_TOPIC_ARN:-}
+      - INFRAGUARD_SLACK_WEBHOOK=${INFRAGUARD_SLACK_WEBHOOK:-}
       - INFRAGUARD_LOG_LEVEL=${INFRAGUARD_LOG_LEVEL:-INFO}
     
     # Mount AWS credentials (Option 2)

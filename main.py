@@ -1,20 +1,13 @@
 #!/usr/bin/env python3
 """
 InfraGuard CLI - Command-line interface for AWS security monitoring.
-
-Usage:
-    python main.py check-all           # Run all security checks
-    python main.py check-iam           # Run only IAM checks
-    python main.py check-network       # Run only network-related checks
-    python main.py analyze-cloudtrail  # Analyze CloudTrail logs
-    python main.py analyze-vpc-logs    # Analyze VPC Flow Logs
-    python main.py --help              # Show help
 """
 
-import argparse
+import click
 import sys
 import logging
 from datetime import datetime
+from pathlib import Path
 
 from infra_guard.config import Config
 from infra_guard.utils import (
@@ -27,447 +20,466 @@ from infra_guard.detection_rules import SecurityChecker
 from infra_guard.plan_analyzer import TerraformPlanAnalyzer
 from infra_guard.log_ingestion import CloudTrailIngestion, CloudTrailAnalyzer, VPCFlowLogIngestion
 from infra_guard.alerting import AlertManager
+from infra_guard.cli_utils import (
+    console,
+    print_banner,
+    print_section,
+    print_success,
+    print_error,
+    print_warning,
+    print_info,
+    print_summary,
+    print_credentials_check,
+    print_scan_progress,
+    print_output_location,
+    print_tips,
+    create_findings_table,
+    create_progress_bar
+)
 
 
-def check_all(config: Config) -> int:
-    """
-    Run all security checks.
+# Common options decorator
+def common_options(func):
+    """Decorator for common CLI options."""
+    func = click.option('--region', default=None, help='AWS region (overrides AWS_REGION env var)')(func)
+    func = click.option('--output-format', type=click.Choice(['json', 'csv', 'text']), default='json', help='Output format')(func)
+    func = click.option('--output-file', type=click.Path(), default=None, help='Output file path')(func)
+    func = click.option('--log-level', type=click.Choice(['DEBUG', 'INFO', 'WARNING', 'ERROR']), default='INFO', help='Logging level')(func)
+    func = click.option('--no-banner', is_flag=True, help='Skip banner display')(func)
+    return func
+
+
+def run_security_checks(config: Config, checker: SecurityChecker, check_type: str, findings: list):
+    """Run security checks with progress display."""
+    print_section("Running Security Checks", "🔍")
     
-    Args:
-        config: InfraGuard configuration
-        
-    Returns:
-        Exit code (0 = success, 1 = error)
+    checks = []
+    
+    if check_type in ['all', 'iam']:
+        if config.check_iam_unused_users:
+            checks.append(('IAM Unused Users', lambda: checker.check_iam_unused_users()))
+        if config.check_iam_root_usage:
+            checks.append(('IAM Root Key Usage', lambda: checker.check_iam_root_key_exists()))
+        if config.check_iam_overpermissive_policies:
+            checks.append(('IAM Overpermissive Policies', lambda: checker.check_iam_overpermissive_policies()))
+        checks.append(('IAM Password Policy', lambda: checker.check_iam_password_policy()))
+    
+    if check_type in ['all', 'network']:
+        if config.check_security_groups:
+            checks.append(('Security Groups', lambda: checker.check_security_groups()))
+        if config.check_vpc_flow_logs_enabled:
+            checks.append(('VPC Flow Logs', lambda: checker.check_vpc_flow_logs()))
+        checks.append(('Public EC2 Instances', lambda: checker.check_ec2_public_instances()))
+    
+    if check_type in ['all', 's3']:
+        checks.append(('S3 Bucket Security', lambda: checker.check_s3_public_buckets()))
+        checks.append(('S3 Encryption', lambda: checker.check_s3_encryption()))
+    
+    if check_type in ['all', 'lambda']:
+        checks.append(('Lambda Functions', lambda: checker.check_lambda_public_access()))
+    
+    # Run checks with progress
+    for check_name, check_func in checks:
+        print_scan_progress(check_name, "running")
+        try:
+            result = check_func()
+            findings.extend(result)
+            if result:
+                print_scan_progress(check_name, "warning")
+            else:
+                print_scan_progress(check_name, "success")
+        except Exception as e:
+            logger = logging.getLogger("InfraGuard")
+            logger.error(f"Error in {check_name}: {str(e)}")
+            print_scan_progress(check_name, "error")
+
+
+@click.group(invoke_without_command=True)
+@click.option('--version', is_flag=True, help='Show version and exit')
+@click.pass_context
+def cli(ctx, version):
     """
+    🔒 InfraGuard - AWS Cloud Security Monitoring with Shift-Left
+    
+    A comprehensive security scanning tool for AWS infrastructure.
+    """
+    if version:
+        console.print("[bold cyan]InfraGuard[/bold cyan] version [bold]1.0.0[/bold]")
+        ctx.exit()
+    
+    if ctx.invoked_subcommand is None:
+        print_banner()
+        console.print("\n[yellow]No command specified. Use --help to see available commands.[/yellow]\n")
+        console.print(ctx.get_help())
+
+
+@cli.command()
+@common_options
+def check_all(region, output_format, output_file, log_level, no_banner):
+    """Run all security checks on your AWS infrastructure."""
+    if not no_banner:
+        print_banner()
+    
+    # Setup
+    config = create_config(region, output_format, output_file, log_level)
+    setup_logging(config.log_level, config.log_format)
     logger = logging.getLogger("InfraGuard")
     
+    # Validate credentials
+    print_credentials_check(config.aws_region)
+    
     try:
-        # Validate configuration
-        warnings = config.validate()
-        for warning in warnings:
-            logger.warning(warning)
-        
-        # Run security checks
+        # Run checks
         checker = SecurityChecker(config)
-        findings = checker.run_all_checks()
+        findings = []
+        
+        run_security_checks(config, checker, 'all', findings)
+        
+        # Display results
+        if findings:
+            console.print()
+            console.print(create_findings_table(findings))
+        
+        print_summary(findings, "All Infrastructure Checks")
         
         # Save findings
-        if config.output_format == 'json':
-            save_findings_json(findings, config.output_file)
-        elif config.output_format == 'csv':
-            save_findings_csv(findings, config.output_file)
-        elif config.output_format == 'log':
-            save_findings_log(findings, config.output_file)
+        save_output(findings, config)
         
-        # Send alerts if configured
-        alert_manager = AlertManager(config)
-        alert_results = alert_manager.send_alerts(findings)
+        # Send alerts
+        if config.sns_enabled or config.slack_enabled:
+            print_section("Sending Alerts", "📢")
+            alert_manager = AlertManager(config)
+            alert_manager.send_alerts(findings)
+            print_success("Alerts sent successfully")
         
-        # Print summary
-        summary = alert_manager.format_summary(findings)
-        print(summary)
+        if not no_banner:
+            print_tips()
         
-        logger.info(f"Security check completed. {len(findings)} findings.")
         return 0
-    
+        
     except Exception as e:
         logger.error(f"Error during security check: {str(e)}", exc_info=True)
+        print_error(f"Scan failed: {str(e)}")
         return 1
 
 
-def check_iam(config: Config) -> int:
-    """
-    Run only IAM security checks.
+@cli.command()
+@common_options
+def check_iam(region, output_format, output_file, log_level, no_banner):
+    """Run IAM security checks (users, policies, permissions)."""
+    if not no_banner:
+        print_banner()
     
-    Args:
-        config: InfraGuard configuration
-        
-    Returns:
-        Exit code
-    """
+    config = create_config(region, output_format, output_file, log_level)
+    setup_logging(config.log_level, config.log_format)
     logger = logging.getLogger("InfraGuard")
+    
+    print_credentials_check(config.aws_region)
     
     try:
         checker = SecurityChecker(config)
         findings = []
         
-        # Run only IAM checks
-        if config.check_iam_unused_users:
-            findings.extend(checker.check_iam_unused_users())
+        run_security_checks(config, checker, 'iam', findings)
         
-        if config.check_iam_root_usage:
-            findings.extend(checker.check_iam_root_key_exists())
+        if findings:
+            console.print()
+            console.print(create_findings_table(findings))
         
-        if config.check_iam_overpermissive_policies:
-            findings.extend(checker.check_iam_overpermissive_policies())
-        
-        findings.extend(checker.check_iam_password_policy())
-        
-        # Save and alert
-        if config.output_format == 'json':
-            save_findings_json(findings, config.output_file)
-        elif config.output_format == 'csv':
-            save_findings_csv(findings, config.output_file)
-        
-        alert_manager = AlertManager(config)
-        print(alert_manager.format_summary(findings))
+        print_summary(findings, "IAM Security Checks")
+        save_output(findings, config)
         
         return 0
-    
+        
     except Exception as e:
         logger.error(f"Error during IAM check: {str(e)}", exc_info=True)
+        print_error(f"Scan failed: {str(e)}")
         return 1
 
 
-def check_network(config: Config) -> int:
-    """
-    Run only network-related security checks (Security Groups, VPC Flow Logs).
+@cli.command()
+@common_options
+def check_network(region, output_format, output_file, log_level, no_banner):
+    """Run network security checks (Security Groups, VPCs, Flow Logs)."""
+    if not no_banner:
+        print_banner()
     
-    Args:
-        config: InfraGuard configuration
-        
-    Returns:
-        Exit code
-    """
+    config = create_config(region, output_format, output_file, log_level)
+    setup_logging(config.log_level, config.log_format)
     logger = logging.getLogger("InfraGuard")
+    
+    print_credentials_check(config.aws_region)
     
     try:
         checker = SecurityChecker(config)
         findings = []
         
-        # Run network checks
-        if config.check_security_groups:
-            findings.extend(checker.check_security_groups())
+        run_security_checks(config, checker, 'network', findings)
         
-        if config.check_vpc_flow_logs_enabled:
-            findings.extend(checker.check_vpc_flow_logs())
+        if findings:
+            console.print()
+            console.print(create_findings_table(findings))
         
-        findings.extend(checker.check_ec2_public_instances())
-        
-        # Save and alert
-        if config.output_format == 'json':
-            save_findings_json(findings, config.output_file)
-        
-        alert_manager = AlertManager(config)
-        print(alert_manager.format_summary(findings))
+        print_summary(findings, "Network Security Checks")
+        save_output(findings, config)
         
         return 0
-    
+        
     except Exception as e:
         logger.error(f"Error during network check: {str(e)}", exc_info=True)
+        print_error(f"Scan failed: {str(e)}")
         return 1
 
 
-def scan_plan(config: Config, plan_file: str) -> int:
-    """
-    Scan Terraform plan for security issues (shift-left security).
+@cli.command()
+@common_options
+def check_s3(region, output_format, output_file, log_level, no_banner):
+    """Run S3 bucket security checks (public access, encryption)."""
+    if not no_banner:
+        print_banner()
     
-    Args:
-        config: InfraGuard configuration
-        plan_file: Path to Terraform plan JSON file
-        
-    Returns:
-        Exit code (0 = no critical issues, 1 = critical issues found or error)
-    """
+    config = create_config(region, output_format, output_file, log_level)
+    setup_logging(config.log_level, config.log_format)
     logger = logging.getLogger("InfraGuard")
     
+    print_credentials_check(config.aws_region)
+    
     try:
-        logger.info(f"Scanning Terraform plan: {plan_file}")
+        checker = SecurityChecker(config)
+        findings = []
         
-        # Analyze Terraform plan
+        run_security_checks(config, checker, 's3', findings)
+        
+        if findings:
+            console.print()
+            console.print(create_findings_table(findings))
+        
+        print_summary(findings, "S3 Security Checks")
+        save_output(findings, config)
+        
+        return 0
+        
+    except Exception as e:
+        logger.error(f"Error during S3 check: {str(e)}", exc_info=True)
+        print_error(f"Scan failed: {str(e)}")
+        return 1
+
+
+@cli.command()
+@common_options
+def check_lambda(region, output_format, output_file, log_level, no_banner):
+    """Run Lambda function security checks."""
+    if not no_banner:
+        print_banner()
+    
+    config = create_config(region, output_format, output_file, log_level)
+    setup_logging(config.log_level, config.log_format)
+    logger = logging.getLogger("InfraGuard")
+    
+    print_credentials_check(config.aws_region)
+    
+    try:
+        checker = SecurityChecker(config)
+        findings = []
+        
+        run_security_checks(config, checker, 'lambda', findings)
+        
+        if findings:
+            console.print()
+            console.print(create_findings_table(findings))
+        
+        print_summary(findings, "Lambda Security Checks")
+        save_output(findings, config)
+        
+        return 0
+        
+    except Exception as e:
+        logger.error(f"Error during Lambda check: {str(e)}", exc_info=True)
+        print_error(f"Scan failed: {str(e)}")
+        return 1
+
+
+@cli.command(name='scan-plan')
+@click.option('--plan-file', required=True, type=click.Path(exists=True), help='Path to Terraform plan JSON file')
+@common_options
+def scan_plan(plan_file, region, output_format, output_file, log_level, no_banner):
+    """Scan Terraform plan for security issues (shift-left security)."""
+    if not no_banner:
+        print_banner()
+    
+    config = create_config(region, output_format, output_file, log_level)
+    setup_logging(config.log_level, config.log_format)
+    logger = logging.getLogger("InfraGuard")
+    
+    print_section("Terraform Plan Analysis", "📋")
+    print_info(f"Analyzing plan file: {plan_file}")
+    
+    try:
         analyzer = TerraformPlanAnalyzer(config)
         findings = analyzer.analyze_plan_file(plan_file)
         
-        # Save findings
-        if config.output_format == 'json':
-            save_findings_json(findings, config.output_file)
-        elif config.output_format == 'csv':
-            save_findings_csv(findings, config.output_file)
-        elif config.output_format == 'log':
-            save_findings_log(findings, config.output_file)
+        if findings:
+            console.print()
+            console.print(create_findings_table(findings))
         
-        # Format and display results
-        alert_manager = AlertManager(config)
-        summary = alert_manager.format_summary(findings)
-        print(summary)
+        print_summary(findings, "Terraform Plan Scan")
+        save_output(findings, config)
         
-        # Check if any critical issues found
+        # Check for critical issues
         critical_findings = [f for f in findings if f.get('severity') == 'CRITICAL']
         high_findings = [f for f in findings if f.get('severity') == 'HIGH']
         
         if critical_findings:
-            logger.error(f"CRITICAL: {len(critical_findings)} critical security issues found in planned infrastructure!")
-            logger.error("Deployment should be blocked until these issues are resolved.")
+            print_error(f"{len(critical_findings)} CRITICAL security issues found!")
+            print_warning("⛔ Deployment should be BLOCKED until these issues are resolved.")
             return 1
         elif high_findings:
-            logger.warning(f"WARNING: {len(high_findings)} high-severity security issues found in planned infrastructure.")
-            logger.warning("Review these issues before proceeding with deployment.")
+            print_warning(f"{len(high_findings)} HIGH severity issues found.")
+            print_info("Review and remediate before deployment.")
+            return 1
         
-        logger.info(f"Plan scan completed. {len(findings)} total findings ({len(critical_findings)} critical, {len(high_findings)} high).")
-        return 0 if not critical_findings else 1
-    
+        print_success("No critical security issues found in Terraform plan")
+        return 0
+        
     except Exception as e:
-        logger.error(f"Error scanning Terraform plan: {str(e)}", exc_info=True)
+        logger.error(f"Error scanning plan: {str(e)}", exc_info=True)
+        print_error(f"Plan scan failed: {str(e)}")
         return 1
 
 
-def analyze_cloudtrail(config: Config, hours: int = 24) -> int:
-    """
-    Analyze CloudTrail logs for security events.
+@cli.command()
+@click.option('--hours', default=24, type=int, help='Hours of logs to analyze')
+@common_options
+def analyze_cloudtrail(hours, region, output_format, output_file, log_level, no_banner):
+    """Analyze CloudTrail logs for suspicious activity."""
+    if not no_banner:
+        print_banner()
     
-    Args:
-        config: InfraGuard configuration
-        hours: Number of hours to analyze
-        
-    Returns:
-        Exit code
-    """
+    config = create_config(region, output_format, output_file, log_level)
+    setup_logging(config.log_level, config.log_format)
     logger = logging.getLogger("InfraGuard")
+    
+    print_section("CloudTrail Analysis", "📊")
+    print_info(f"Analyzing last {hours} hours of CloudTrail logs")
     
     try:
         ingestion = CloudTrailIngestion(config)
-        analyzer = CloudTrailAnalyzer()
+        analyzer = CloudTrailAnalyzer(config)
         
-        logger.info(f"Analyzing CloudTrail logs from last {hours} hours...")
+        with create_progress_bar("Fetching CloudTrail events") as progress:
+            task = progress.add_task("Loading...", total=100)
+            events = ingestion.fetch_events(hours=hours)
+            progress.update(task, completed=100)
         
-        # Get recent events
-        events = ingestion.get_recent_events(hours=hours, max_events=5000)
-        logger.info(f"Retrieved {len(events)} CloudTrail events")
+        findings = analyzer.analyze_events(events)
         
-        findings = []
+        if findings:
+            console.print()
+            console.print(create_findings_table(findings))
         
-        # Analyze for security patterns
-        root_usage = analyzer.find_root_account_usage(events)
-        if root_usage:
-            for event in root_usage:
-                findings.append({
-                    "category": "CloudTrail",
-                    "severity": "CRITICAL",
-                    "description": f"Root account used for {event['event_name']}",
-                    "resource": "Root Account",
-                    "details": event,
-                    "recommendation": "Use IAM users/roles instead of root account"
-                })
-        
-        failed_auth = analyzer.find_failed_auth_attempts(events)
-        if failed_auth:
-            findings.append({
-                "category": "CloudTrail",
-                "severity": "MEDIUM",
-                "description": f"Detected {len(failed_auth)} failed authentication attempts",
-                "resource": "AWS Account",
-                "details": {"failed_attempts": len(failed_auth), "sample": failed_auth[:5]},
-                "recommendation": "Investigate source IPs and consider blocking if suspicious"
-            })
-        
-        privilege_escalation = analyzer.find_privilege_escalation_attempts(events)
-        if privilege_escalation:
-            findings.append({
-                "category": "CloudTrail",
-                "severity": "HIGH",
-                "description": f"Detected {len(privilege_escalation)} potential privilege escalation events",
-                "resource": "AWS Account",
-                "details": {"events": len(privilege_escalation), "sample": privilege_escalation[:5]},
-                "recommendation": "Review IAM policy changes and ensure they are authorized"
-            })
-        
-        # Save findings
-        save_findings_json(findings, config.output_file)
-        
-        alert_manager = AlertManager(config)
-        print(alert_manager.format_summary(findings))
+        print_summary(findings, f"CloudTrail Analysis ({hours}h)")
+        save_output(findings, config)
         
         return 0
-    
+        
     except Exception as e:
         logger.error(f"Error analyzing CloudTrail: {str(e)}", exc_info=True)
+        print_error(f"Analysis failed: {str(e)}")
         return 1
 
 
-def analyze_vpc_logs(config: Config, hours: int = 24) -> int:
-    """
-    Analyze VPC Flow Logs for suspicious network activity.
+@cli.command()
+@click.option('--hours', default=24, type=int, help='Hours of logs to analyze')
+@common_options
+def analyze_vpc_logs(hours, region, output_format, output_file, log_level, no_banner):
+    """Analyze VPC Flow Logs for network anomalies."""
+    if not no_banner:
+        print_banner()
     
-    Args:
-        config: InfraGuard configuration
-        hours: Number of hours to analyze
-        
-    Returns:
-        Exit code
-    """
+    config = create_config(region, output_format, output_file, log_level)
+    setup_logging(config.log_level, config.log_format)
     logger = logging.getLogger("InfraGuard")
+    
+    print_section("VPC Flow Logs Analysis", "🌐")
+    print_info(f"Analyzing last {hours} hours of VPC Flow Logs")
     
     try:
         ingestion = VPCFlowLogIngestion(config)
         
-        logger.info(f"Analyzing VPC Flow Logs from last {hours} hours...")
+        with create_progress_bar("Fetching VPC Flow Logs") as progress:
+            task = progress.add_task("Loading...", total=100)
+            events = ingestion.fetch_flow_logs(hours=hours)
+            progress.update(task, completed=100)
         
-        # Get recent flow logs
-        records = ingestion.get_recent_flow_logs(hours=hours, max_records=10000)
-        logger.info(f"Retrieved {len(records)} flow log records")
+        # Analyze for anomalies
+        findings = ingestion.analyze_flow_logs(events)
         
-        findings = []
+        if findings:
+            console.print()
+            console.print(create_findings_table(findings))
         
-        # Analyze rejected traffic
-        rejected = ingestion.filter_rejected_traffic(records)
-        
-        if rejected:
-            top_ports = ingestion.get_top_rejected_ports(rejected, top_n=10)
-            top_ips = ingestion.get_top_source_ips(rejected, top_n=10)
-            
-            findings.append({
-                "category": "VPCFlowLogs",
-                "severity": "INFO",
-                "description": f"Detected {len(rejected)} rejected connection attempts",
-                "resource": "VPC Flow Logs",
-                "details": {
-                    "rejected_count": len(rejected),
-                    "top_targeted_ports": top_ports,
-                    "top_source_ips": top_ips
-                },
-                "recommendation": "Review rejected traffic for port scanning or attack attempts"
-            })
-            
-            # Alert on excessive port scanning
-            if top_ports and top_ports[0]['count'] > 100:
-                findings.append({
-                    "category": "VPCFlowLogs",
-                    "severity": "MEDIUM",
-                    "description": f"Possible port scanning detected on port {top_ports[0]['port']} ({top_ports[0]['count']} attempts)",
-                    "resource": "VPC",
-                    "details": {"top_ports": top_ports[:5]},
-                    "recommendation": "Verify traffic is expected or consider blocking source IPs"
-                })
-        
-        # Save findings
-        save_findings_json(findings, config.output_file)
-        
-        alert_manager = AlertManager(config)
-        print(alert_manager.format_summary(findings))
+        print_summary(findings, f"VPC Flow Logs Analysis ({hours}h)")
+        save_output(findings, config)
         
         return 0
-    
+        
     except Exception as e:
-        logger.error(f"Error analyzing VPC Flow Logs: {str(e)}", exc_info=True)
+        logger.error(f"Error analyzing VPC logs: {str(e)}", exc_info=True)
+        print_error(f"Analysis failed: {str(e)}")
         return 1
 
 
-def main():
-    """
-    Main CLI entry point.
-    """
-    parser = argparse.ArgumentParser(
-        description="InfraGuard - AWS Cloud Security Monitoring Tool",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python main.py check-all                    # Run all security checks
-  python main.py check-iam                    # Check only IAM
-  python main.py check-network                # Check security groups and VPCs
-  python main.py scan-plan --plan-file plan.json  # Scan Terraform plan (shift-left)
-  python main.py analyze-cloudtrail --hours 48  # Analyze 48h of CloudTrail
-  python main.py analyze-vpc-logs --hours 12    # Analyze 12h of VPC logs
-  
-Environment Variables:
-  AWS_REGION              AWS region to monitor (default: us-east-1)
-  INFRAGUARD_S3_BUCKET    S3 bucket for logs
-  INFRAGUARD_SNS_TOPIC_ARN    SNS topic for alerts
-  INFRAGUARD_SLACK_WEBHOOK    Slack webhook for alerts
-  INFRAGUARD_LOG_LEVEL    Log level (DEBUG, INFO, WARNING, ERROR)
-        """
-    )
-    
-    parser.add_argument(
-        'command',
-        choices=['check-all', 'check-iam', 'check-network', 'scan-plan', 'analyze-cloudtrail', 'analyze-vpc-logs'],
-        help='Command to execute'
-    )
-    
-    parser.add_argument(
-        '--region',
-        default=None,
-        help='AWS region (overrides AWS_REGION env var)'
-    )
-    
-    parser.add_argument(
-        '--plan-file',
-        default=None,
-        help='Path to Terraform plan JSON file for scan-plan command'
-    )
-    
-    parser.add_argument(
-        '--hours',
-        type=int,
-        default=24,
-        help='Hours of logs to analyze (for log analysis commands)'
-    )
-    
-    parser.add_argument(
-        '--output-format',
-        choices=['json', 'csv', 'log'],
-        default='json',
-        help='Output format for findings'
-    )
-    
-    parser.add_argument(
-        '--output-file',
-        default=None,
-        help='Output file path (default: stdout)'
-    )
-    
-    parser.add_argument(
-        '--log-level',
-        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
-        default='INFO',
-        help='Logging level'
-    )
-    
-    args = parser.parse_args()
-    
-    # Create configuration
+def create_config(region, output_format, output_file, log_level):
+    """Create configuration from CLI arguments."""
     config = Config()
     
-    # Override with CLI arguments
-    if args.region:
-        config.aws_region = args.region
-    if args.output_format:
-        config.output_format = args.output_format
-    if args.output_file:
-        config.output_file = args.output_file
-    if args.log_level:
-        config.log_level = args.log_level
+    if region:
+        config.aws_region = region
+    if output_format:
+        config.output_format = output_format
+    if output_file:
+        config.output_file = output_file
+    if log_level:
+        config.log_level = log_level
     
-    # Setup logging
-    setup_logging(config.log_level, config.log_format)
-    logger = logging.getLogger("InfraGuard")
-    
-    logger.info(f"InfraGuard starting with command: {args.command}")
-    logger.info(f"Configuration: {config}")
-    
-    # Execute command
-    exit_code = 0
-    
-    if args.command == 'check-all':
-        exit_code = check_all(config)
-    elif args.command == 'check-iam':
-        exit_code = check_iam(config)
-    elif args.command == 'check-network':
-        exit_code = check_network(config)
-    elif args.command == 'scan-plan':
-        if not args.plan_file:
-            logger.error("--plan-file is required for scan-plan command")
-            sys.exit(1)
-        exit_code = scan_plan(config, args.plan_file)
-    elif args.command == 'analyze-cloudtrail':
-        exit_code = analyze_cloudtrail(config, args.hours)
-    elif args.command == 'analyze-vpc-logs':
-        exit_code = analyze_vpc_logs(config, args.hours)
+    return config
+
+
+def save_output(findings, config):
+    """Save findings to file."""
+    if config.output_file:
+        if config.output_format == 'json':
+            save_findings_json(findings, config.output_file)
+        elif config.output_format == 'csv':
+            save_findings_csv(findings, config.output_file)
+        elif config.output_format == 'text':
+            save_findings_log(findings, config.output_file)
+        
+        print_output_location(config.output_file)
     else:
-        logger.error(f"Unknown command: {args.command}")
-        exit_code = 1
-    
-    sys.exit(exit_code)
+        # Auto-generate filename
+        timestamp = datetime.now().strftime('%Y-%m-%d-%H%M%S')
+        output_dir = Path('scan-results')
+        output_dir.mkdir(exist_ok=True)
+        
+        filename = output_dir / f"infraguard-scan-{timestamp}.{config.output_format}"
+        
+        if config.output_format == 'json':
+            save_findings_json(findings, str(filename))
+        elif config.output_format == 'csv':
+            save_findings_csv(findings, str(filename))
+        elif config.output_format == 'text':
+            save_findings_log(findings, str(filename))
+        
+        print_output_location(str(filename))
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        sys.exit(cli())
+    except KeyboardInterrupt:
+        console.print("\n\n[yellow]⚠ Scan interrupted by user[/yellow]")
+        sys.exit(130)
+    except Exception as e:
+        console.print(f"\n[red]✗ Unexpected error: {str(e)}[/red]")
+        sys.exit(1)
