@@ -61,30 +61,30 @@ InfraGuard is a comprehensive AWS security monitoring solution that combines **r
 
 ```bash
 # Pull the pre-built image from Docker Hub
-docker pull yourusername/infraguard:latest
+docker pull tasnimmizaoui/infraguard:latest
 
 # Run security scan (mount your AWS credentials)
 docker run --rm \
   -v ~/.aws:/home/infraguard/.aws:ro \
   -e AWS_REGION=eu-north-1 \
-  yourusername/infraguard:latest check-all
+  tasnimmizaoui/infraguard:latest check-all
 
 # Run specific scans
 docker run --rm -v ~/.aws:/home/infraguard/.aws:ro -e AWS_REGION=eu-north-1 \
-  yourusername/infraguard:latest check-iam
+  tasnimmizaoui/infraguard:latest check-iam
 
 docker run --rm -v ~/.aws:/home/infraguard/.aws:ro -e AWS_REGION=eu-north-1 \
-  yourusername/infraguard:latest check-network
+  tasnimmizaoui/infraguard:latest check-network
 ```
 
 **Windows PowerShell:**
 ```powershell
-docker pull yourusername/infraguard:latest
+docker pull tasnimmizaoui/infraguard:latest
 
 docker run --rm `
   -v C:\Users\$env:USERNAME\.aws:/home/infraguard/.aws:ro `
   -e AWS_REGION=eu-north-1 `
-  yourusername/infraguard:latest check-all
+  tasnimmizaoui/infraguard:latest check-all
 ```
 
 ### Option 2: Docker Compose (For Development)
